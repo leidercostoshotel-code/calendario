@@ -668,7 +668,7 @@ function renderContacts(){
 // ======= NOTES (with people) =======
 function getRelevantNotes(dateStr,currentYear){
     const md=dateStr.substring(5);
-    return notes.filter(n=>{if(n.date===dateStr) return true;if(n.isRecurring&&n.date.substring(5)===md) return true;return false;});
+    return notes.filter(n=>{if(!n.date) return false;if(n.date===dateStr) return true;if(n.isRecurring&&n.date.substring(5)===md) return true;return false;});
 }
 
 function addNote(){
@@ -699,7 +699,7 @@ function saveChanges(){
 }
 function resetNoteForm(){
     ['noteTitle','noteDesc'].forEach(x=>document.getElementById(x).value='');
-    document.getElementById('noteDate').valueAsDate=new Date();
+    const _rd=new Date();document.getElementById('noteDate').value=_rd.getFullYear()+'-'+String(_rd.getMonth()+1).padStart(2,'0')+'-'+String(_rd.getDate()).padStart(2,'0');
     document.getElementById('notePriority').value='baja';document.getElementById('noteType').value='tarea';
     document.getElementById('addNoteBtn').style.display='block';document.getElementById('saveNoteBtn').style.display='none';
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
@@ -760,7 +760,7 @@ function renderNoteCard(n){
         <h3>${n.isRecurring?'\ud83c\udf82 ':''}${n.title}</h3>
         <p>${n.desc}</p>
         ${getPeopleHTML(n.people)}
-        <div class="note-date">\ud83d\udcc5 ${new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}${n.isRecurring?' (Recurrente Anual)':''}</div>
+        <div class="note-date">\ud83d\udcc5 ${n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'Fecha no definida'}${n.isRecurring?' (Recurrente Anual)':''}</div>
         ${n.completed&&!n.isRecurring?'<div style="margin-top:10px;font-weight:bold;">\u2728 Completado</div>':''}
     </div>`;
 }
@@ -769,7 +769,7 @@ function renderNotes(){
     const nl=document.getElementById('notesList');
     const cy=currentDate.getFullYear(),cm=currentDate.getMonth()+1,cms=String(cm).padStart(2,'0');
     document.getElementById('notesListMonth').textContent=`(${monthNames[cm-1]} ${cy})`;
-    const fn=notes.filter(n=>{const nm=n.date.substring(5,7),ny=n.date.substring(0,4);if(nm===cms&&ny==cy) return true;if(n.isRecurring&&nm===cms) return true;return false;});
+    const fn=notes.filter(n=>{if(!n.date) return false;const nm=n.date.substring(5,7),ny=n.date.substring(0,4);if(nm===cms&&ny==cy) return true;if(n.isRecurring&&nm===cms) return true;return false;});
     if(!fn.length){nl.innerHTML='<p style="text-align:center;color:var(--gray3);padding:40px;font-family:var(--serif);font-style:italic;font-size:1.05em;">No hay notas para '+monthNames[cm-1]+'. \ud83e\udd73</p>';return;}
 
     const sortFn=(a,b)=>{if(a.isRecurring!==b.isRecurring) return a.isRecurring?-1:1;if(a.date!==b.date) return new Date(a.date)-new Date(b.date);if(a.completed!==b.completed) return a.completed?1:-1;return 0;};
@@ -880,7 +880,7 @@ function showDayNotes(ds){
 }
 
 // INIT
-document.getElementById('noteDate').valueAsDate=new Date();
+const _id=new Date();document.getElementById('noteDate').value=_id.getFullYear()+'-'+String(_id.getMonth()+1).padStart(2,'0')+'-'+String(_id.getDate()).padStart(2,'0');
 renderCalendar();updateTicker();checkTodayAlerts();
 
 // ======= CLOUD SYNC INIT =======
