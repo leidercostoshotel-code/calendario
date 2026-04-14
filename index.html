@@ -512,6 +512,7 @@ async function cloudLoad() {
             if (d.notes && d.notes.length > 0) {
                 notes = d.notes.map(n => ({
                     ...n,
+                    date: normalizeDate(n.date),
                     isRecurring: n.isRecurring === true || n.isRecurring === 'true',
                     completed: n.completed === true || n.completed === 'true',
                     people: Array.isArray(n.people) ? n.people.map(Number) : []
@@ -535,8 +536,22 @@ async function cloudLoad() {
     }
 }
 
+// Normaliza cualquier formato de fecha a YYYY-MM-DD
+function normalizeDate(d){
+    if(!d) return '';
+    if(typeof d==='string'){
+        // Ya está en formato correcto
+        if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+        // Intenta parsear otro formato (ej: ISO con hora, DD/MM/YYYY, etc.)
+        const p=new Date(d);
+        if(!isNaN(p)) return p.getFullYear()+'-'+String(p.getMonth()+1).padStart(2,'0')+'-'+String(p.getDate()).padStart(2,'0');
+    }
+    if(d instanceof Date&&!isNaN(d)) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    return '';
+}
+
 // Load from localStorage first (instant), then cloud
-function loadNotes(){const s=localStorage.getItem('agendaNotes');if(s){notes=JSON.parse(s);notes=notes.map(n=>({...n,isRecurring:n.isRecurring===undefined?(n.type==='cumplea\u00f1os'):n.isRecurring,people:n.people||[]}));}}
+function loadNotes(){const s=localStorage.getItem('agendaNotes');if(s){notes=JSON.parse(s);notes=notes.map(n=>({...n,date:normalizeDate(n.date),isRecurring:n.isRecurring===undefined?(n.type==='cumplea\u00f1os'):n.isRecurring,people:n.people||[]}));}}
 function saveNotes(){localStorage.setItem('agendaNotes',JSON.stringify(notes));cloudSave();}
 function loadContacts(){const s=localStorage.getItem('agendaContacts');if(s) contacts=JSON.parse(s);}
 function saveContacts(){localStorage.setItem('agendaContacts',JSON.stringify(contacts));cloudSave();}
@@ -681,7 +696,7 @@ function getRelevantNotes(dateStr,currentYear){
 }
 
 function addNote(){
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=document.getElementById('noteDate').value,priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
     notes.push({id:Date.now(),title,desc,date,priority,type,completed:false,isRecurring,people:[...selectedPersonIds]});
@@ -699,7 +714,7 @@ function editNote(id){
 }
 function saveChanges(){
     if(!editingNoteId) return;const i=notes.findIndex(n=>n.id===editingNoteId);if(i===-1) return;
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=document.getElementById('noteDate').value,priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
     notes[i]={...notes[i],title,desc,date,priority,type,isRecurring,people:[...selectedPersonIds]};
