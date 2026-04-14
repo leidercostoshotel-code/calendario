@@ -266,7 +266,155 @@
         .card{animation:fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both;}
         @keyframes slideInUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
         .note-card{animation:slideInUp 0.5s ease both;}
-        @media(max-width:968px){.main-grid,.contacts-grid{grid-template-columns:1fr;}.calendar-grid{gap:4px;}.day-cell{padding:8px 4px 18px 4px;min-height:58px;font-size:0.88em;}.header h1{font-size:1.3em;}.container{padding:14px;}}
+
+        /* ===== MOBILE BOTTOM NAV (oculto en desktop) ===== */
+        .mobile-bottom-nav{display:none;}
+
+        /* ===== TABLET ===== */
+        @media(max-width:968px){
+            .main-grid,.contacts-grid{grid-template-columns:1fr;}
+            .calendar-grid{gap:5px;}
+            .day-cell{padding:8px 4px 18px;min-height:58px;}
+            .header h1{font-size:1.4em;}
+            .container{padding:16px;}
+        }
+
+        /* ===== MOBILE ===== */
+        @media(max-width:768px){
+            body{
+                padding:0;
+                padding-bottom:calc(70px + env(safe-area-inset-bottom, 0px));
+                background-attachment:scroll;
+            }
+            body::before{width:260px;height:260px;opacity:0.2;}
+            body::after{width:200px;height:200px;opacity:0.15;}
+
+            .container{padding:0;}
+
+            /* Header compacto */
+            .header{
+                border-radius:0 0 22px 22px;
+                margin-bottom:14px;
+                padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 12px;
+                position:sticky;top:0;
+            }
+            .header h1{font-size:1.18em;letter-spacing:0.5px;}
+            .header p{font-size:0.76em;}
+            .header>div{margin-top:4px;}
+            .news-ticker{height:32px;margin-top:8px;}
+            .ticker-item{font-size:0.76em;}
+
+            /* Ocultar tabs desktop, mostrar bottom nav */
+            .tab-nav{display:none;}
+            .mobile-bottom-nav{
+                display:flex;
+                position:fixed;bottom:0;left:0;right:0;
+                background:linear-gradient(135deg,rgba(20,50,100,0.98),rgba(30,60,114,0.98));
+                backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+                border-top:1px solid rgba(255,255,255,0.12);
+                padding:6px 0 calc(6px + env(safe-area-inset-bottom,0px));
+                z-index:200;
+                box-shadow:0 -6px 28px rgba(0,0,0,0.25);
+            }
+            .nav-item{
+                flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+                padding:8px 4px 4px;cursor:pointer;border:none;background:none;
+                color:rgba(255,255,255,0.45);font-size:0.6em;font-weight:700;
+                letter-spacing:0.8px;text-transform:uppercase;font-family:var(--sans);
+                transition:color 0.25s;
+            }
+            .nav-icon{font-size:1.55em;line-height:1;transition:transform 0.25s,filter 0.25s;}
+            .nav-item.active{color:rgba(255,255,255,0.97);}
+            .nav-item.active .nav-icon{transform:translateY(-3px);filter:drop-shadow(0 0 8px rgba(255,255,255,0.5));}
+
+            /* Contenido tabs */
+            .tab-content.active{padding:0 13px 16px;animation:fadeUp 0.3s ease;}
+
+            /* Grid una columna */
+            .main-grid,.contacts-grid{grid-template-columns:1fr;gap:13px;}
+
+            /* Cards */
+            .card{padding:18px 16px;border-radius:16px;}
+            .card h2{font-size:1.18em;margin-bottom:14px;}
+            .card:hover{transform:none;box-shadow:var(--shadow-lg);}
+
+            /* Calendario */
+            .calendar-header{margin-bottom:12px;}
+            .calendar-header h3{font-size:1em;font-weight:700;}
+            .calendar-header button{padding:9px 13px;font-size:0.78em;border-radius:8px;}
+            .calendar-grid{gap:3px;margin-top:10px;}
+            .day-label{padding:6px 2px;font-size:0.6em;letter-spacing:0.6px;}
+            .day-cell{padding:5px 2px 14px;min-height:48px;border-radius:8px;cursor:pointer;}
+            .day-cell:hover{transform:none;box-shadow:none;}
+            .day-cell:active{transform:scale(0.95);opacity:0.85;}
+            .day-number{font-size:0.82em;margin-bottom:2px;}
+            .notes-badge{width:16px;height:16px;font-size:0.6em;top:3px;right:3px;}
+            .holiday-badge,.birthday-badge{font-size:0.5em;padding:2px 3px;border-radius:3px;}
+
+            /* Notas */
+            .notes-list{grid-template-columns:1fr;gap:11px;}
+            .person-groups-grid{grid-template-columns:1fr;gap:12px;}
+            .note-card{padding:16px 15px 13px;border-radius:14px;}
+            .note-card:hover{transform:none;}
+            .note-card:active{transform:scale(0.98);}
+            .note-card h3{font-size:1.05em;margin-bottom:7px;padding-right:100px;}
+            .note-card p{font-size:0.86em;}
+            .note-date{font-size:0.78em;}
+            .action-btn{width:38px;height:38px;font-size:1.1em;}
+            .note-actions{gap:5px;}
+
+            /* Formulario — font-size 16px evita zoom automático en iOS */
+            .input-group{margin-bottom:14px;}
+            .input-group label{font-size:0.72em;margin-bottom:6px;}
+            .input-group input,.input-group textarea,.input-group select{
+                font-size:16px;padding:13px 14px;border-radius:10px;
+            }
+            .input-group textarea{min-height:80px;}
+            .btn{padding:15px 20px;font-size:1em;border-radius:10px;}
+            .btn-row{gap:8px;}
+            .btn-sm{padding:11px 16px;font-size:0.88em;}
+
+            /* Contactos */
+            .contact-card{padding:12px 14px;}
+            .contact-avatar{width:40px;height:40px;font-size:0.9em;}
+            .contacts-list-wrap{max-height:none;}
+            .search-bar input{font-size:16px;}
+
+            /* Modal — sube desde abajo como bottom sheet */
+            .modal-overlay{align-items:flex-end;padding:0;}
+            .modal-content{
+                width:100%;max-width:100%;
+                border-radius:24px 24px 0 0;
+                max-height:88vh;
+                padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px));
+                transform:translateY(100%);
+                transition:transform 0.38s cubic-bezier(0.22,1,0.36,1);
+                box-shadow:0 -12px 50px rgba(0,0,0,0.25);
+            }
+            .modal-overlay.open .modal-content{transform:translateY(0);}
+            /* Handle bar en el modal */
+            .modal-content::before{
+                content:'';display:block;width:40px;height:4px;
+                background:var(--gray2);border-radius:2px;
+                margin:0 auto 18px;
+            }
+            .modal-content h2{font-size:1.1em;}
+            .modal-note-item h4{font-size:1em;padding-right:75px;}
+            .modal-actions .action-btn{width:28px;height:28px;}
+
+            /* Ticker compacto */
+            @keyframes scroll-left{0%{transform:translateX(100vw);}100%{transform:translateX(-100%);}}
+        }
+
+        /* ===== TELÉFONOS PEQUEÑOS ===== */
+        @media(max-width:380px){
+            .header h1{font-size:1em;}
+            .day-cell{min-height:40px;padding:4px 1px 12px;}
+            .day-number{font-size:0.75em;}
+            .calendar-header h3{font-size:0.88em;}
+            .calendar-header button{padding:7px 10px;font-size:0.72em;}
+            .card{padding:15px 13px;}
+        }
     </style>
 </head>
 <body>
@@ -371,6 +519,18 @@
         <div id="modalBody"></div>
     </div>
 </div>
+
+<!-- BOTTOM NAV MÓVIL -->
+<nav class="mobile-bottom-nav">
+    <button class="nav-item active" id="navAgenda" onclick="switchTab('agenda')">
+        <span class="nav-icon">&#128197;</span>
+        <span>Agenda</span>
+    </button>
+    <button class="nav-item" id="navContacts" onclick="switchTab('contacts')">
+        <span class="nav-icon">&#128101;</span>
+        <span>Contactos</span>
+    </button>
+</nav>
 
 <script>
 // ======= COLOR UTILS =======
@@ -562,7 +722,11 @@ function switchTab(tab){
     document.querySelectorAll('.tab-btn').forEach((b,i)=>{b.classList.toggle('active',['agenda','contacts'][i]===tab);});
     document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
     document.getElementById('tab-'+tab).classList.add('active');
+    // Sincroniza bottom nav móvil
+    document.getElementById('navAgenda').classList.toggle('active',tab==='agenda');
+    document.getElementById('navContacts').classList.toggle('active',tab==='contacts');
     if(tab==='contacts') renderContacts();
+    window.scrollTo({top:0,behavior:'smooth'});
 }
 
 // ======= AUTOCOMPLETE (Person search in note form) =======
