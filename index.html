@@ -1076,28 +1076,36 @@ async function manualSync() {
     const loaded = await cloudLoad();
     if (loaded) {
         renderCalendar();
-        updateTicker();
+        renderNotes();
         renderContacts();
+        updateTicker();
     }
 }
 
-// Auto-load from cloud on startup, then auto-sync every 60 seconds
+// Auto-load from cloud on startup, then auto-sync every 15 segundos
 (async function initCloud() {
     if (!SHEET_URL) {
         setSyncStatus('local');
         return;
     }
-    // Load from cloud (merges with localStorage)
+    // Carga inicial desde el cloud
     const loaded = await cloudLoad();
     if (loaded) {
         renderCalendar();
+        renderNotes();
+        renderContacts();
         updateTicker();
     }
-    // Auto-sync every 60 seconds (pull from cloud)
+    // Sincroniza cada 15 segundos para ver cambios de otros usuarios casi en tiempo real
     syncInterval = setInterval(async () => {
         const ok = await cloudLoad();
-        if (ok) { renderCalendar(); updateTicker(); }
-    }, 60000);
+        if (ok) {
+            renderCalendar();
+            renderNotes();
+            renderContacts();
+            updateTicker();
+        }
+    }, 15000);
 })();
 
 // ======= SERVICE WORKER (PWA) =======
