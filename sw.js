@@ -1,4 +1,4 @@
-const CACHE = 'agenda-v1';
+const CACHE = 'agenda-v2';
 const ASSETS = ['./', './index.html', './icon.svg', './manifest.json'];
 
 // Instala y cachea los archivos base

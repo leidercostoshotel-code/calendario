@@ -559,6 +559,7 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxeEzBWjLvDj28qqCwXvl
 let syncStatus = 'local';
 let lastSync = null;
 let syncInterval = null;
+let pendingSaves = 0; // evita que cloudLoad pise cambios locales que aún se están guardando
 
 function setSyncStatus(status, msg) {
     syncStatus = status;
@@ -603,6 +604,7 @@ function jsonpRequest(url) {
 async function cloudSave() {
     if (!SHEET_URL) { setSyncStatus('local'); return; }
     setSyncStatus('syncing');
+    pendingSaves++;
     try {
         // For large data, split into chunks if needed
         const notesStr = encodeURIComponent(JSON.stringify(notes));
@@ -620,10 +622,14 @@ async function cloudSave() {
             lastSync = new Date();
             setSyncStatus('synced', 'Sync ' + lastSync.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}));
         } else {
-            setSyncStatus('error', d.error || 'Error');
+            console.error('[cloudSave] Apps Script respondi\u00f3 error:', d);
+            setSyncStatus('error', d.error || 'Error al guardar');
         }
     } catch(e) {
-        setSyncStatus('error', 'Sin conexi\u00f3n');
+        console.error('[cloudSave] Fallo de red/JSONP:', e);
+        setSyncStatus('error', 'Sin conexi\u00f3n al guardar');
+    } finally {
+        pendingSaves = Math.max(0, pendingSaves - 1);
     }
 }
 
@@ -669,7 +675,9 @@ async function cloudLoad() {
     try {
         const d = await jsonpRequest(SHEET_URL + '?action=getAll');
         if (d.success) {
-            if (d.notes && d.notes.length > 0) {
+            // Aceptamos arrays vac\u00edos: si en otro dispositivo borraste todo,
+            // queremos que la eliminaci\u00f3n se propague (antes se ignoraba).
+            if (Array.isArray(d.notes)) {
                 notes = d.notes.map(n => ({
                     ...n,
                     date: normalizeDate(n.date),
@@ -679,7 +687,7 @@ async function cloudLoad() {
                 }));
                 localStorage.setItem('agendaNotes', JSON.stringify(notes));
             }
-            if (d.contacts && d.contacts.length > 0) {
+            if (Array.isArray(d.contacts)) {
                 contacts = d.contacts;
                 localStorage.setItem('agendaContacts', JSON.stringify(contacts));
             }
@@ -687,11 +695,13 @@ async function cloudLoad() {
             setSyncStatus('synced', 'Cargado ' + lastSync.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}));
             return true;
         } else {
-            setSyncStatus('error', d.error || 'Error');
+            console.error('[cloudLoad] Apps Script respondi\u00f3 error:', d);
+            setSyncStatus('error', d.error || 'Error al cargar');
             return false;
         }
     } catch(e) {
-        setSyncStatus('error', 'Sin conexi\u00f3n');
+        console.error('[cloudLoad] Fallo de red/JSONP:', e);
+        setSyncStatus('error', 'Sin conexi\u00f3n al cargar');
         return false;
     }
 }
@@ -1098,6 +1108,8 @@ async function manualSync() {
     }
     // Sincroniza cada 15 segundos para ver cambios de otros usuarios casi en tiempo real
     syncInterval = setInterval(async () => {
+        // Si hay guardados en vuelo, no cargues del cloud: los perder\u00edas.
+        if (pendingSaves > 0) return;
         const ok = await cloudLoad();
         if (ok) {
             renderCalendar();
