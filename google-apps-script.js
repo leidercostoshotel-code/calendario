@@ -20,45 +20,63 @@ const SPREADSHEET_ID = '';  // Ej: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms
 const SHEET_NAME_NOTES    = 'Notas';
 const SHEET_NAME_CONTACTS = 'Contactos';
 
-// ── Obtiene el spreadsheet (nunca crea uno nuevo) ──────────
+// ── Obtiene el spreadsheet — busca automáticamente en Drive ─
 function getSpreadsheet() {
-  // 1. Usar ID hardcodeado si está definido
+  var props = PropertiesService.getScriptProperties();
+
+  // 1. ID hardcodeado (máxima prioridad)
   if (SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(SPREADSHEET_ID);
+    var ss1 = SpreadsheetApp.openById(SPREADSHEET_ID);
+    props.setProperty('SPREADSHEET_ID', SPREADSHEET_ID);
+    return ss1;
   }
 
-  // 2. Buscar en script properties (del deploy anterior)
-  var props = PropertiesService.getScriptProperties();
+  // 2. ID guardado en properties, pero solo si el sheet tiene las hojas correctas
   var storedId = props.getProperty('SPREADSHEET_ID');
   if (storedId) {
-    try { return SpreadsheetApp.openById(storedId); } catch (e) {}
+    try {
+      var ss2 = SpreadsheetApp.openById(storedId);
+      if (ss2.getSheetByName(SHEET_NAME_NOTES) && ss2.getSheetByName(SHEET_NAME_CONTACTS)) {
+        return ss2; // ✅ Es el correcto
+      }
+      // Tiene el ID pero no las hojas correctas → seguir buscando
+    } catch (e) {}
   }
 
-  // 3. Buscar por nombre en Drive (encuentra el sheet existente)
-  var files = DriveApp.getFilesByName('Agenda — Leider Tisnado Mego');
-  if (files.hasNext()) {
+  // 3. Buscar en TODO el Drive: el spreadsheet que tenga hojas "Notas" Y "Contactos"
+  var files = DriveApp.getFilesByType(MimeType.GOOGLE_SHEETS);
+  while (files.hasNext()) {
     var file = files.next();
-    var ss = SpreadsheetApp.openById(file.getId());
-    props.setProperty('SPREADSHEET_ID', file.getId());
-    return ss;
+    try {
+      var ss3 = SpreadsheetApp.openById(file.getId());
+      if (ss3.getSheetByName(SHEET_NAME_NOTES) && ss3.getSheetByName(SHEET_NAME_CONTACTS)) {
+        props.setProperty('SPREADSHEET_ID', file.getId()); // Guardar para la próxima vez
+        Logger.log('Sheet encontrado: ' + file.getName() + ' | ID: ' + file.getId());
+        return ss3; // ✅ Encontrado automáticamente
+      }
+    } catch (e) {}
   }
 
-  // 4. Último recurso: crear uno nuevo (solo si no existe ninguno)
+  // 4. Último recurso: crear uno nuevo
   var newSs = SpreadsheetApp.create('Agenda — Leider Tisnado Mego');
   props.setProperty('SPREADSHEET_ID', newSs.getId());
   return newSs;
 }
 
-// ── Función de diagnóstico (ejecútala manualmente para ver cuál sheet usa) ──
+// ── Diagnóstico: selecciona esta función y presiona ▶ Ejecutar ──
 function diagnostico() {
-  var ss = getSpreadsheet();
-  Logger.log('Spreadsheet: ' + ss.getName());
-  Logger.log('ID: ' + ss.getId());
-  Logger.log('URL: ' + ss.getUrl());
-  var notas = ss.getSheetByName(SHEET_NAME_NOTES);
-  var contactos = ss.getSheetByName(SHEET_NAME_CONTACTS);
-  Logger.log('Hoja Notas: ' + (notas ? notas.getLastRow() - 1 + ' filas' : 'NO ENCONTRADA'));
-  Logger.log('Hoja Contactos: ' + (contactos ? contactos.getLastRow() - 1 + ' filas' : 'NO ENCONTRADA'));
+  try {
+    var ss = getSpreadsheet();
+    Logger.log('✅ Spreadsheet encontrado: ' + ss.getName());
+    Logger.log('   ID: ' + ss.getId());
+    Logger.log('   URL: ' + ss.getUrl());
+    var notas     = ss.getSheetByName(SHEET_NAME_NOTES);
+    var contactos = ss.getSheetByName(SHEET_NAME_CONTACTS);
+    Logger.log('   Hoja Notas: '     + (notas     ? (notas.getLastRow()     - 1) + ' filas de datos' : '❌ NO ENCONTRADA'));
+    Logger.log('   Hoja Contactos: ' + (contactos ? (contactos.getLastRow() - 1) + ' filas de datos' : '❌ NO ENCONTRADA'));
+  } catch(err) {
+    Logger.log('❌ Error: ' + err.message);
+  }
 }
 
 // ── Punto de entrada GET (JSONP) ────────────────────────────
