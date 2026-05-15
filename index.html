@@ -898,12 +898,14 @@ function renderContacts(){
         const col=getAvatarColor(c.name);
         const catCol=CATEGORY_COLORS[c.category]||'#7f8c8d';
         const hl=q?c.name.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<span class="ac-highlight">$1</span>'):c.name;
+        const health=getHealthSummary(c);
         return `<div class="contact-card">
             <div class="contact-avatar" style="background:${col}">${getInitials(c.name)}</div>
             <div class="contact-info">
                 <div class="contact-name">${hl}</div>
                 <div class="contact-detail">${c.phone||'Sin teléfono'}${c.email?' · '+c.email:''}</div>
                 <div class="contact-detail">Talla: ${c.height?c.height.toFixed(2)+' m':'No registrada'}${c.weightHistory&&c.weightHistory.length?' · Último peso: '+c.weightHistory[c.weightHistory.length-1].weight+' kg':''}</div>
+                ${health?`<div class="contact-detail" style="color:${health.info.color};font-weight:700;">Estado OMS: ${health.info.level} (IMC ${health.bmi.toFixed(1)})</div><div class="contact-detail">Recomendación: ${health.recommendation}</div>`:'<div class="contact-detail">Registra talla y peso para ver estado y recomendación personalizada.</div>'}
                 <div style="margin-top:4px;"><span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:0.7em;font-weight:600;color:var(--white);background:${catCol};">${c.category}</span></div>
             </div>
             <div class="contact-actions">
@@ -917,10 +919,19 @@ function renderContacts(){
 
 
 function getBmiLevel(bmi){
-    if(bmi<18.5) return {level:'Bajo peso',color:'var(--orange1)',tips:['Sube calorías de buena calidad (frutos secos, palta, huevos).','Incluye fuerza 2-3 veces por semana.','Haz control médico si hay fatiga o pérdida de apetito.']};
-    if(bmi<25) return {level:'Peso saludable',color:'var(--green2)',tips:['Mantén rutina combinada: fuerza + caminatas.','Prioriza proteína, fibra, agua y buen sueño.','Controla peso 1 vez por semana para prevenir rebotes.']};
-    if(bmi<30) return {level:'Sobrepeso',color:'var(--orange2)',tips:['Déficit calórico moderado (sin dietas extremas).','Apunta a 8k-10k pasos diarios y fuerza 3 días/semana.','Reduce bebidas azucaradas y ultraprocesados.']};
-    return {level:'Obesidad',color:'var(--red2)',tips:['Meta inicial: bajar 5% a 10% del peso en 3-6 meses.','Seguimiento con nutrición/médico para plan personalizado.','Prioriza hábitos sostenibles: porciones, sueño y actividad diaria.']};
+    if(bmi<18.5) return {level:'Antecedes',color:'var(--orange1)',tips:['Aumenta calorías saludables (frutos secos, palta, huevo, yogur).','Incluye fuerza 2-3 veces por semana para ganar masa muscular.','Revisa con nutricionista o médico si hay fatiga o pérdida de apetito.']};
+    if(bmi<25) return {level:'Peso moderado',color:'var(--green2)',tips:['Mantén alimentación equilibrada: proteína, verduras, fibra y agua.','Sostén actividad física regular (150 min/semana + fuerza).','Controla peso cada semana para mantener estabilidad.']};
+    return {level:'Sobrepeso',color:'var(--orange2)',tips:['Haz un déficit calórico moderado, sin dietas extremas.','Apunta a 8k-10k pasos diarios y fuerza 3 días por semana.','Reduce bebidas azucaradas y ultraprocesados, prioriza comida real.']};
+}
+
+function getHealthSummary(contact){
+    if(!contact.height||!contact.weightHistory||!contact.weightHistory.length){
+        return null;
+    }
+    const latest=contact.weightHistory[contact.weightHistory.length-1].weight;
+    const bmi=latest/(contact.height*contact.height);
+    const info=getBmiLevel(bmi);
+    return {bmi,info,recommendation:info.tips[0]};
 }
 
 function logWeight(id){
