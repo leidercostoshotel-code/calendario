@@ -715,6 +715,32 @@ function cloudSaveViaForm() {
     });
 }
 
+function parsePeopleField(raw){
+    if(!raw && raw !== 0) return [];
+    if(Array.isArray(raw)) return raw.map(Number).filter(Boolean);
+    if(typeof raw === 'string'){
+        const s=raw.trim();
+        if(!s || s==='[]') return [];
+        try{ const p=JSON.parse(s); return Array.isArray(p)?p.map(Number).filter(Boolean):[]; }catch(_){}
+        // Fallback: extrae números del string "[123, 456]"
+        const nums=s.match(/\d+/g);
+        return nums?nums.map(Number):[];
+    }
+    if(typeof raw === 'number') return [raw];
+    return [];
+}
+
+function parseWeightHistory(raw){
+    if(!raw) return [];
+    if(Array.isArray(raw)) return raw;
+    if(typeof raw === 'string'){
+        const s=raw.trim();
+        if(!s || s==='[]') return [];
+        try{ const p=JSON.parse(s); return Array.isArray(p)?p:[]; }catch(_){ return []; }
+    }
+    return [];
+}
+
 async function cloudLoad() {
     if (!SHEET_URL) { setSyncStatus('local'); return false; }
     setSyncStatus('syncing');
@@ -729,12 +755,17 @@ async function cloudLoad() {
                     date: normalizeDate(n.date),
                     isRecurring: n.isRecurring === true || n.isRecurring === 'true',
                     completed: n.completed === true || n.completed === 'true',
-                    people: Array.isArray(n.people) ? n.people.map(Number) : []
+                    people: parsePeopleField(n.people),
+                    metricType: n.metricType || 'peso'
                 }));
                 localStorage.setItem('agendaNotes', JSON.stringify(notes));
             }
             if (Array.isArray(d.contacts)) {
-                contacts = d.contacts;
+                contacts = d.contacts.map(c => ({
+                    ...c,
+                    height: c.height ? Number(c.height) : null,
+                    weightHistory: parseWeightHistory(c.weightHistory)
+                }));
                 localStorage.setItem('agendaContacts', JSON.stringify(contacts));
             }
             lastSync = new Date();
@@ -756,13 +787,22 @@ async function cloudLoad() {
 function normalizeDate(d){
     if(!d) return '';
     if(typeof d==='string'){
-        // Ya está en formato correcto
+        // Formato correcto: YYYY-MM-DD
         if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-        // Intenta parsear otro formato (ej: ISO con hora, DD/MM/YYYY, etc.)
+        // ISO con hora (ej: "2026-05-04T00:00:00.000Z") — tomar solo la parte de fecha sin convertir timezone
+        const isoMatch=d.match(/^(\d{4}-\d{2}-\d{2})T/);
+        if(isoMatch) return isoMatch[1];
+        // Número serial de Google Sheets (días desde 1899-12-30)
+        const num=Number(d);
+        if(!isNaN(num)&&num>40000&&num<60000){
+            const dt=new Date(Date.UTC(1899,11,30)+num*86400000);
+            return dt.toISOString().slice(0,10);
+        }
+        // Otro formato de texto
         const p=new Date(d);
-        if(!isNaN(p)) return p.getFullYear()+'-'+String(p.getMonth()+1).padStart(2,'0')+'-'+String(p.getDate()).padStart(2,'0');
+        if(!isNaN(p)) return p.toISOString().slice(0,10);
     }
-    if(d instanceof Date&&!isNaN(d)) return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(d instanceof Date&&!isNaN(d)) return d.toISOString().slice(0,10);
     return '';
 }
 
@@ -1397,7 +1437,23 @@ function renderNotes(){
     const cy=currentDate.getFullYear(),cm=currentDate.getMonth()+1,cms=String(cm).padStart(2,'0');
     document.getElementById('notesListMonth').textContent=`(${monthNames[cm-1]} ${cy})`;
     const fn=notes.filter(n=>{if(!n.date) return false;const nm=n.date.substring(5,7),ny=n.date.substring(0,4);if(nm===cms&&ny==cy) return true;if(n.isRecurring&&nm===cms) return true;return false;});
-    if(!fn.length){nl.innerHTML='<p style="text-align:center;color:var(--gray3);padding:40px;font-family:var(--serif);font-style:italic;font-size:1.05em;">No hay notas para '+monthNames[cm-1]+'. \ud83e\udd73</p>';return;}
+    if(!fn.length){
+        // Encuentra meses con notas y sugiere navegaci\u00f3n
+        const monthsWithNotes={};
+        notes.forEach(n=>{if(!n.date) return;const k=n.date.substring(0,7);monthsWithNotes[k]=(monthsWithNotes[k]||0)+1;});
+        const sortedMonths=Object.keys(monthsWithNotes).sort().reverse().slice(0,6);
+        const monthBtns=sortedMonths.map(k=>{
+            const [y,m]=k.split('-');
+            const label=monthNames[parseInt(m)-1]+' '+y;
+            return `<button onclick="goToMonth(${y},${parseInt(m)-1})" style="background:var(--blue2);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:0.85em;font-weight:600;margin:4px;">${label} (${monthsWithNotes[k]})</button>`;
+        }).join('');
+        nl.innerHTML=`<div style="text-align:center;padding:30px 20px;">
+            <p style="color:var(--gray3);font-family:var(--serif);font-style:italic;font-size:1.05em;margin-bottom:${sortedMonths.length?'18px':'0'};">No hay notas para ${monthNames[cm-1]} ${cy}. \ud83c\udf89</p>
+            ${sortedMonths.length?`<p style="color:var(--gray4);font-size:0.88em;font-weight:600;margin-bottom:10px;">\ud83d\udcc5 Meses con registros:</p><div>${monthBtns}</div>`:''}
+            <button onclick="showAllNotes()" style="margin-top:16px;background:linear-gradient(135deg,var(--purple2),var(--purple1));color:#fff;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:0.88em;font-weight:700;">\ud83d\udccb Ver todos los registros</button>
+        </div>`;
+        return;
+    }
 
     const sortFn=(a,b)=>{if(a.isRecurring!==b.isRecurring) return a.isRecurring?-1:1;if(a.date!==b.date) return new Date(a.date)-new Date(b.date);if(a.completed!==b.completed) return a.completed?1:-1;return 0;};
 
@@ -1479,6 +1535,53 @@ function checkTodayAlerts(){
 
 function closeModal(){document.getElementById('noteModal').classList.remove('open');}
 
+function goToMonth(year, month){
+    currentDate=new Date(year, month, 1);
+    renderCalendar();
+    window.scrollTo({top:document.getElementById('notesList').offsetTop-20,behavior:'smooth'});
+}
+
+function showAllNotes(){
+    const nl=document.getElementById('notesList');
+    if(!notes.length){nl.innerHTML='<p style="text-align:center;color:var(--gray3);padding:40px;">Sin registros aún.</p>';return;}
+    const sortFn=(a,b)=>new Date(b.date)-new Date(a.date);
+    const sorted=[...notes].sort(sortFn);
+    // Group by person
+    const personGroups={};
+    sorted.forEach(n=>{
+        (n.people||[]).forEach(pid=>{
+            if(!personGroups[pid]) personGroups[pid]=[];
+            if(!personGroups[pid].find(x=>x.id===n.id)) personGroups[pid].push(n);
+        });
+    });
+    const ungrouped=sorted.filter(n=>!n.people||!n.people.length);
+    let html=`<div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <span style="font-family:var(--serif);font-size:0.95em;color:var(--blue1);font-weight:700;">📋 Todos los registros (${notes.length})</span>
+        <button onclick="renderCalendar()" style="background:var(--blue2);color:#fff;border:none;padding:7px 16px;border-radius:8px;cursor:pointer;font-family:var(--sans);font-size:0.82em;font-weight:600;">← Volver al mes actual</button>
+    </div>`;
+    const personIds=Object.keys(personGroups).map(Number);
+    personIds.sort((a,b)=>{const ca=contacts.find(x=>x.id===a),cb=contacts.find(x=>x.id===b);return(ca?ca.name:'').localeCompare(cb?cb.name:'');});
+    if(personIds.length){
+        html+='<div class="person-groups-grid">';
+        personIds.forEach(pid=>{
+            const c=contacts.find(x=>x.id===pid);if(!c) return;
+            const col=getAvatarColor(c.name);
+            const gn=personGroups[pid];
+            html+=`<div class="person-group">
+                <div class="person-group-header">
+                    <div class="pg-avatar" style="background:${col}">${getInitials(c.name)}</div>
+                    <div class="pg-name">${c.name}</div>
+                    <div class="pg-count">${gn.length} nota${gn.length!==1?'s':''}</div>
+                </div>
+                <div class="person-group-list">${gn.map(n=>renderNoteCard(n)).join('')}</div>
+            </div>`;
+        });
+        html+='</div>';
+    }
+    if(ungrouped.length) html+=`<div class="notes-list">${ungrouped.map(n=>renderNoteCard(n)).join('')}</div>`;
+    nl.innerHTML=html;
+}
+
 function showDayNotes(ds){
     const cy=currentDate.getFullYear(),dn=getRelevantNotes(ds,cy),h=holidays[ds];
     if(!dn.length&&!h){document.getElementById('noteDate').value=ds;document.querySelector('.note-form').scrollIntoView({behavior:'smooth',block:'start'});document.getElementById('noteTitle').focus();return;}
@@ -1512,9 +1615,23 @@ updateTitlePlaceholder();
 renderCalendar();updateTicker();checkTodayAlerts();
 
 // ======= CLOUD SYNC INIT =======
+function jumpToLatestMonth(){
+    // Si el mes actual no tiene notas, salta al mes más reciente con notas
+    const cy=currentDate.getFullYear(),cm=currentDate.getMonth()+1,cms=String(cm).padStart(2,'0');
+    const currentHasNotes=notes.some(n=>{
+        if(!n.date) return false;
+        return (n.date.substring(5,7)===cms&&n.date.substring(0,4)==String(cy))||(n.isRecurring&&n.date.substring(5,7)===cms);
+    });
+    if(!currentHasNotes&&notes.length){
+        const latest=notes.filter(n=>n.date&&!n.isRecurring).sort((a,b)=>b.date.localeCompare(a.date))[0];
+        if(latest){const[y,m]=latest.date.split('-');currentDate=new Date(parseInt(y),parseInt(m)-1,1);}
+    }
+}
+
 async function manualSync() {
     const loaded = await cloudLoad();
     if (loaded) {
+        jumpToLatestMonth();
         renderCalendar();
         renderNotes();
         renderContacts();
@@ -1531,6 +1648,7 @@ async function manualSync() {
     // Carga inicial desde el cloud
     const loaded = await cloudLoad();
     if (loaded) {
+        jumpToLatestMonth();
         renderCalendar();
         renderNotes();
         renderContacts();
