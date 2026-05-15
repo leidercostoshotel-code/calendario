@@ -485,6 +485,7 @@
                 <div class="input-group"><label>Nombre Completo</label><input type="text" id="contactName" placeholder="Nombre y apellido"></div>
                 <div class="input-group"><label>Tel&eacute;fono</label><input type="tel" id="contactPhone" placeholder="+51 999 999 999"></div>
                 <div class="input-group"><label>Email</label><input type="email" id="contactEmail" placeholder="correo@ejemplo.com"></div>
+                <div class="input-group"><label>Talla (m) - solo una vez</label><input type="number" id="contactHeight" min="0.8" max="2.5" step="0.01" placeholder="Ej: 1.68"></div>
                 <div class="input-group"><label>Categor&iacute;a</label>
                     <select id="contactCategory">
                         <option value="trabajo">&#128188; Trabajo</option>
@@ -723,7 +724,7 @@ function normalizeDate(d){
 // Load from localStorage first (instant), then cloud
 function loadNotes(){const s=localStorage.getItem('agendaNotes');if(s){notes=JSON.parse(s);notes=notes.map(n=>({...n,date:normalizeDate(n.date),isRecurring:n.isRecurring===undefined?(n.type==='cumplea\u00f1os'):n.isRecurring,people:n.people||[]}));}}
 function saveNotes(){localStorage.setItem('agendaNotes',JSON.stringify(notes));cloudSave();}
-function loadContacts(){const s=localStorage.getItem('agendaContacts');if(s) contacts=JSON.parse(s);}
+function loadContacts(){const s=localStorage.getItem('agendaContacts');if(s) contacts=JSON.parse(s);contacts=contacts.map(c=>({...c,height:c.height?Number(c.height):null,weightHistory:Array.isArray(c.weightHistory)?c.weightHistory:[]}));}
 function saveContacts(){localStorage.setItem('agendaContacts',JSON.stringify(contacts));cloudSave();}
 loadNotes();loadContacts();
 
@@ -799,8 +800,11 @@ function addContact(){
     const phone=document.getElementById('contactPhone').value.trim();
     const email=document.getElementById('contactEmail').value.trim();
     const category=document.getElementById('contactCategory').value;
+    const heightRaw=document.getElementById('contactHeight').value;
+    const height=heightRaw?Number(heightRaw):null;
     if(!name){alert('Por favor ingresa un nombre');return;}
-    contacts.push({id:Date.now(),name,phone,email,category});
+    if(height!==null&&(height<0.8||height>2.5)){alert('Ingresa una talla válida en metros (0.80 a 2.50).');return;}
+    contacts.push({id:Date.now(),name,phone,email,category,height,weightHistory:[]});
     saveContacts();resetContactForm();renderContacts();
 }
 function editContact(id){
@@ -809,6 +813,7 @@ function editContact(id){
     document.getElementById('contactPhone').value=c.phone;
     document.getElementById('contactEmail').value=c.email;
     document.getElementById('contactCategory').value=c.category;
+    document.getElementById('contactHeight').value=c.height||'';
     document.getElementById('addContactBtn').style.display='none';
     document.getElementById('saveContactBtn').style.display='block';
     editingContactId=id;
@@ -821,6 +826,15 @@ function saveContactChanges(){
     contacts[i].phone=document.getElementById('contactPhone').value.trim();
     contacts[i].email=document.getElementById('contactEmail').value.trim();
     contacts[i].category=document.getElementById('contactCategory').value;
+    const newHeightRaw=document.getElementById('contactHeight').value;
+    const newHeight=newHeightRaw?Number(newHeightRaw):null;
+    if(newHeight!==null&&(newHeight<0.8||newHeight>2.5)){alert('Ingresa una talla válida en metros (0.80 a 2.50).');return;}
+    if(contacts[i].height&&newHeight&&Math.abs(contacts[i].height-newHeight)>0.001){
+        alert('La talla ya fue registrada. Para mantener historial consistente solo se guarda una vez.');
+        document.getElementById('contactHeight').value=contacts[i].height;
+    } else if(!contacts[i].height&&newHeight){
+        contacts[i].height=newHeight;
+    }
     saveContacts();resetContactForm();renderContacts();
 }
 function deleteContact(id){
@@ -828,7 +842,7 @@ function deleteContact(id){
     contacts=contacts.filter(c=>c.id!==id);saveContacts();renderContacts();
 }
 function resetContactForm(){
-    ['contactName','contactPhone','contactEmail'].forEach(x=>document.getElementById(x).value='');
+    ['contactName','contactPhone','contactEmail','contactHeight'].forEach(x=>document.getElementById(x).value='');
     document.getElementById('contactCategory').value='trabajo';
     document.getElementById('addContactBtn').style.display='block';
     document.getElementById('saveContactBtn').style.display='none';
@@ -852,15 +866,46 @@ function renderContacts(){
             <div class="contact-avatar" style="background:${col}">${getInitials(c.name)}</div>
             <div class="contact-info">
                 <div class="contact-name">${hl}</div>
-                <div class="contact-detail">${c.phone||'Sin tel\u00e9fono'}${c.email?' · '+c.email:''}</div>
+                <div class="contact-detail">${c.phone||'Sin teléfono'}${c.email?' · '+c.email:''}</div>
+                <div class="contact-detail">Talla: ${c.height?c.height.toFixed(2)+' m':'No registrada'}${c.weightHistory&&c.weightHistory.length?' · Último peso: '+c.weightHistory[c.weightHistory.length-1].weight+' kg':''}</div>
                 <div style="margin-top:4px;"><span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:0.7em;font-weight:600;color:var(--white);background:${catCol};">${c.category}</span></div>
             </div>
             <div class="contact-actions">
+                <button onclick="logWeight(${c.id})" title="Registrar peso">⚖️</button>
                 <button onclick="editContact(${c.id})" title="Editar">&#9998;</button>
                 <button onclick="deleteContact(${c.id})" title="Eliminar">&#128465;</button>
             </div>
         </div>`;
     }).join('');
+}
+
+
+function getBmiLevel(bmi){
+    if(bmi<18.5) return {level:'Bajo peso',color:'var(--orange1)',tips:['Sube calorías de buena calidad (frutos secos, palta, huevos).','Incluye fuerza 2-3 veces por semana.','Haz control médico si hay fatiga o pérdida de apetito.']};
+    if(bmi<25) return {level:'Peso saludable',color:'var(--green2)',tips:['Mantén rutina combinada: fuerza + caminatas.','Prioriza proteína, fibra, agua y buen sueño.','Controla peso 1 vez por semana para prevenir rebotes.']};
+    if(bmi<30) return {level:'Sobrepeso',color:'var(--orange2)',tips:['Déficit calórico moderado (sin dietas extremas).','Apunta a 8k-10k pasos diarios y fuerza 3 días/semana.','Reduce bebidas azucaradas y ultraprocesados.']};
+    return {level:'Obesidad',color:'var(--red2)',tips:['Meta inicial: bajar 5% a 10% del peso en 3-6 meses.','Seguimiento con nutrición/médico para plan personalizado.','Prioriza hábitos sostenibles: porciones, sueño y actividad diaria.']};
+}
+
+function logWeight(id){
+    const c=contacts.find(x=>x.id===id);if(!c) return;
+    if(!c.height){alert('Primero registra la talla de '+c.name+' (solo se guarda una vez).');editContact(id);return;}
+    const val=prompt('Ingresa el peso actual de '+c.name+' (kg):');
+    if(val===null) return;
+    const kg=Number(val);
+    if(!Number.isFinite(kg)||kg<20||kg>400){alert('Peso inválido. Ingresa un valor entre 20 y 400 kg.');return;}
+    if(!Array.isArray(c.weightHistory)) c.weightHistory=[];
+    c.weightHistory.push({date:new Date().toISOString(),weight:kg});
+    const bmi=kg/(c.height*c.height);
+    const info=getBmiLevel(bmi);
+    const lastTwo=c.weightHistory.slice(-2);
+    let trend='Sin tendencia aún.';
+    if(lastTwo.length===2){
+        const delta=(lastTwo[1].weight-lastTwo[0].weight).toFixed(1);
+        trend=delta>0?`Subió ${delta} kg desde el último control.`:delta<0?`Bajó ${Math.abs(delta)} kg desde el último control.`:'Sin cambios desde el último control.';
+    }
+    saveContacts();renderContacts();
+    alert(`Nivel de ${c.name}: ${info.level}\nIMC: ${bmi.toFixed(1)}\n${trend}\n\nRecomendaciones:\n- ${info.tips.join('\n- ')}`);
 }
 
 // ======= NOTES (with people) =======
