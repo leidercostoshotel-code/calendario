@@ -14,6 +14,7 @@
     <meta name="apple-mobile-web-app-title" content="Agenda">
     <link rel="apple-touch-icon" href="icon.svg">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
         :root{
@@ -261,6 +262,35 @@
         .modal-actions .action-btn{width:30px;height:30px;font-size:1em;background:rgba(0,0,0,0.06);color:var(--gray4);border:none;}
         .modal-actions .action-btn:hover{background:rgba(0,0,0,0.12);color:var(--blue1);}
 
+        /* ===== BMI / HEALTH STATUS BADGES ===== */
+        .bmi-panel{margin:10px 0 4px;border-radius:10px;padding:10px 14px;background:rgba(0,0,0,0.18);border:1px solid rgba(255,255,255,0.18);}
+        .bmi-panel-title{font-size:0.72em;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;opacity:0.75;margin-bottom:6px;}
+        .bmi-person-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+        .bmi-person-row:last-child{margin-bottom:0;}
+        .bmi-mini-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6em;font-weight:700;background:rgba(255,255,255,0.25);flex-shrink:0;margin-top:2px;}
+        .bmi-info{flex:1;}
+        .bmi-name{font-size:0.8em;font-weight:700;margin-bottom:3px;}
+        .bmi-badge-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+        .bmi-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:0.72em;font-weight:800;letter-spacing:0.5px;border:1.5px solid rgba(255,255,255,0.3);}
+        .bmi-imc{font-size:0.72em;opacity:0.8;font-family:var(--mono);}
+        .bmi-tips{font-size:0.72em;opacity:0.85;line-height:1.5;}
+        .bmi-tip-item{display:flex;align-items:flex-start;gap:4px;margin-bottom:2px;}
+
+        /* Contact card BMI section */
+        .contact-bmi-section{margin-top:6px;padding:8px 12px;border-radius:8px;border-left:4px solid;}
+        .contact-bmi-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;font-size:0.75em;font-weight:800;color:#fff;margin-bottom:4px;}
+        .contact-bmi-imc{font-size:0.8em;color:var(--gray4);font-family:var(--mono);margin-bottom:2px;}
+        .contact-bmi-tips{font-size:0.76em;color:var(--gray4);line-height:1.55;}
+        .weight-trend{font-size:0.72em;font-weight:600;margin-top:2px;}
+        .trend-up{color:var(--red2);}
+        .trend-down{color:var(--green2);}
+        .trend-flat{color:var(--gray3);}
+
+        /* Export button */
+        .export-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+        .btn-excel{background:linear-gradient(135deg,#1a7a3d,#21a353);color:#fff;border:none;padding:11px 22px;border-radius:var(--radius-sm);font-size:0.88em;cursor:pointer;font-weight:700;font-family:var(--sans);display:inline-flex;align-items:center;gap:7px;box-shadow:0 4px 14px rgba(26,122,61,0.3);transition:all 0.3s;}
+        .btn-excel:hover{box-shadow:0 7px 22px rgba(26,122,61,0.45);transform:translateY(-2px);}
+
         ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(30,60,114,0.15);border-radius:4px;}::-webkit-scrollbar-thumb:hover{background:rgba(30,60,114,0.3);}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
         .card{animation:fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both;}
@@ -482,6 +512,9 @@
         </div>
         <div class="card notes-section">
             <h2><span class="icon-3d">&#128204;</span> Mis Notas y Recordatorios <span id="notesListMonth">(Mes Actual)</span></h2>
+            <div class="export-toolbar">
+                <button class="btn-excel" onclick="exportToExcel()">&#128196; Exportar a Excel</button>
+            </div>
             <div id="notesList"></div>
         </div>
     </div>
@@ -821,15 +854,41 @@ function updateTitlePlaceholder(){
 
 function getSmartHealthSummary(peopleIds){
     if(!peopleIds||!peopleIds.length) return '';
-    const lines=peopleIds.map(pid=>{
+    const panels=peopleIds.map(pid=>{
         const c=contacts.find(x=>x.id===pid);
         if(!c||!c.height||!c.weightHistory||!c.weightHistory.length) return '';
-        const latest=c.weightHistory[c.weightHistory.length-1];
+        const hist=c.weightHistory;
+        const latest=hist[hist.length-1];
         const bmi=latest.weight/(c.height*c.height);
         const info=getBmiLevel(bmi);
-        return `<div class="note-date">🧠 ${c.name}: <strong style="color:${info.color};">${info.level}</strong>. Plan sugerido: ${info.tips[0]}</div>`;
+        const col=getAvatarColor(c.name);
+        let trend='';
+        if(hist.length>=2){
+            const delta=(hist[hist.length-1].weight - hist[hist.length-2].weight);
+            const abs=Math.abs(delta).toFixed(1);
+            trend = delta>0.05 ? `<span style="color:#ff8080;">▲ +${abs} kg</span>`
+                  : delta<-0.05? `<span style="color:#80ffb0;">▼ -${abs} kg</span>`
+                  : `<span style="opacity:0.6;">→ Sin cambio</span>`;
+        }
+        const tipsHtml=info.tips.slice(0,3).map(t=>`<div class="bmi-tip-item"><span>•</span><span>${t}</span></div>`).join('');
+        return `<div class="bmi-person-row">
+            <div class="bmi-mini-avatar" style="background:${col}">${getInitials(c.name)}</div>
+            <div class="bmi-info">
+                <div class="bmi-name">${c.name}</div>
+                <div class="bmi-badge-row">
+                    <span class="bmi-badge" style="background:${info.color};color:#fff;">${info.icon} ${info.level}</span>
+                    <span class="bmi-imc">IMC ${bmi.toFixed(1)} · ${info.grade}</span>
+                    ${trend}
+                </div>
+                <div class="bmi-tips">${tipsHtml}</div>
+            </div>
+        </div>`;
     }).filter(Boolean);
-    return lines.join('');
+    if(!panels.length) return '';
+    return `<div class="bmi-panel">
+        <div class="bmi-panel-title">🏥 Estado de Salud OMS</div>
+        ${panels.join('')}
+    </div>`;
 }
 
 function addContact(){
@@ -900,17 +959,27 @@ function renderContacts(){
         const catCol=CATEGORY_COLORS[c.category]||'#7f8c8d';
         const hl=q?c.name.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<span class="ac-highlight">$1</span>'):c.name;
         const health=getHealthSummary(c);
+        const latestW=c.weightHistory&&c.weightHistory.length?c.weightHistory[c.weightHistory.length-1].weight:null;
+        const healthSection=health?`
+            <div class="contact-bmi-section" style="background:${health.info.bg};border-left-color:${health.info.borderColor};">
+                <div><span class="contact-bmi-badge" style="background:${health.info.color};">${health.info.icon} ${health.info.level} — ${health.info.grade}</span></div>
+                <div class="contact-bmi-imc">IMC: <strong>${health.bmi.toFixed(2)}</strong> · Peso: <strong>${health.weight} kg</strong> · Talla: <strong>${c.height.toFixed(2)} m</strong></div>
+                ${health.trendText?`<div class="weight-trend ${health.trendClass}">${health.trendText}</div>`:''}
+                <div class="contact-bmi-tips"><strong>Recomendación OMS:</strong> ${health.recommendation}</div>
+            </div>`
+            :`<div class="contact-detail" style="color:var(--gray3);font-style:italic;margin-top:4px;">Registra talla y peso para ver estado OMS personalizado.</div>`;
         return `<div class="contact-card">
             <div class="contact-avatar" style="background:${col}">${getInitials(c.name)}</div>
             <div class="contact-info">
                 <div class="contact-name">${hl}</div>
                 <div class="contact-detail">${c.phone||'Sin teléfono'}${c.email?' · '+c.email:''}</div>
-                <div class="contact-detail">Talla: ${c.height?c.height.toFixed(2)+' m':'No registrada'}${c.weightHistory&&c.weightHistory.length?' · Último peso: '+c.weightHistory[c.weightHistory.length-1].weight+' kg':''}</div>
-                ${health?`<div class="contact-detail" style="color:${health.info.color};font-weight:700;">Estado OMS: ${health.info.level} (IMC ${health.bmi.toFixed(1)})</div><div class="contact-detail">Recomendación: ${health.recommendation}</div>`:'<div class="contact-detail">Registra talla y peso para ver estado y recomendación personalizada.</div>'}
-                <div style="margin-top:4px;"><span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:0.7em;font-weight:600;color:var(--white);background:${catCol};">${c.category}</span></div>
+                <div class="contact-detail">Talla: ${c.height?c.height.toFixed(2)+' m':'No registrada'}${latestW?' · Último peso: '+latestW+' kg':''}</div>
+                ${healthSection}
+                <div style="margin-top:6px;"><span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:0.7em;font-weight:600;color:var(--white);background:${catCol};">${c.category}</span></div>
             </div>
             <div class="contact-actions">
                 <button onclick="logWeight(${c.id})" title="Registrar peso">⚖️</button>
+                <button onclick="viewWeightHistory(${c.id})" title="Historial de peso">📈</button>
                 <button onclick="editContact(${c.id})" title="Editar">&#9998;</button>
                 <button onclick="deleteContact(${c.id})" title="Eliminar">&#128465;</button>
             </div>
@@ -919,41 +988,280 @@ function renderContacts(){
 }
 
 
+/* Clasificación OMS / WHO oficial de IMC — 8 niveles */
 function getBmiLevel(bmi){
-    if(bmi<18.5) return {level:'Antecedes',color:'var(--orange1)',tips:['Aumenta calorías saludables (frutos secos, palta, huevo, yogur).','Incluye fuerza 2-3 veces por semana para ganar masa muscular.','Revisa con nutricionista o médico si hay fatiga o pérdida de apetito.']};
-    if(bmi<25) return {level:'Peso moderado',color:'var(--green2)',tips:['Mantén alimentación equilibrada: proteína, verduras, fibra y agua.','Sostén actividad física regular (150 min/semana + fuerza).','Controla peso cada semana para mantener estabilidad.']};
-    return {level:'Sobrepeso',color:'var(--orange2)',tips:['Haz un déficit calórico moderado, sin dietas extremas.','Apunta a 8k-10k pasos diarios y fuerza 3 días por semana.','Reduce bebidas azucaradas y ultraprocesados, prioriza comida real.']};
+    if(bmi < 16.0) return {
+        level:'Delgadez Severa', grade:'Grado III', icon:'⚠️',
+        color:'#8B0000', bg:'rgba(139,0,0,0.15)', borderColor:'#8B0000',
+        tips:[
+            'Busca atención médica urgente — riesgo vital inmediato.',
+            'Evaluación nutricional clínica y posible soporte enteral/parenteral.',
+            'Análisis de laboratorio completo: electrolitos, función renal y hepática.',
+            'Rehabilitación nutricional gradual bajo supervisión estricta.'
+        ]
+    };
+    if(bmi < 17.0) return {
+        level:'Delgadez Moderada', grade:'Grado II', icon:'🔴',
+        color:'#c0392b', bg:'rgba(192,57,43,0.12)', borderColor:'#c0392b',
+        tips:[
+            'Consulta con médico y nutricionista a la brevedad.',
+            'Aumenta ingesta calórica con alimentos densos en nutrientes (palta, frutos secos, aceite de oliva, legumbres).',
+            'Incluye proteína de alta calidad en cada comida (huevo, pollo, pescado, legumbres).',
+            'Realiza ejercicio de fuerza leve para preservar y ganar masa muscular.'
+        ]
+    };
+    if(bmi < 18.5) return {
+        level:'Delgadez Leve', grade:'Grado I', icon:'🟠',
+        color:'#d35400', bg:'rgba(211,84,0,0.10)', borderColor:'#d35400',
+        tips:[
+            'Aumenta el aporte calórico con 300-500 kcal/día adicionales.',
+            'Prioriza proteínas magras (150-200 g/día) y carbohidratos complejos.',
+            'Entrena fuerza 3 días/semana para ganar masa magra.',
+            'Controla el peso semanalmente y ajusta con nutricionista si no hay mejora.'
+        ]
+    };
+    if(bmi < 25.0) return {
+        level:'Peso Normal', grade:'Saludable OMS', icon:'✅',
+        color:'#1a7a3d', bg:'rgba(26,122,61,0.10)', borderColor:'#27ae60',
+        tips:[
+            'Mantén dieta equilibrada: proteína, vegetales, frutas, granos integrales y grasas buenas.',
+            'Realiza al menos 150 min/semana de actividad aeróbica + 2 sesiones de fuerza.',
+            'Hidratación: 35 ml/kg de peso corporal al día.',
+            'Controla el peso mensualmente para detectar cambios a tiempo.'
+        ]
+    };
+    if(bmi < 30.0) return {
+        level:'Sobrepeso', grade:'Pre-obesidad', icon:'🟡',
+        color:'#b7770d', bg:'rgba(183,119,13,0.10)', borderColor:'#f39c12',
+        tips:[
+            'Genera un déficit calórico moderado de 300-500 kcal/día — sin dietas extremas.',
+            'Prioriza proteínas (1.6 g/kg), fibra y grasas saludables para saciedad.',
+            'Apunta a 8 000–10 000 pasos diarios más fuerza 3 días/semana.',
+            'Reduce bebidas azucaradas, alcohol y ultraprocesados; prioriza comida real.',
+            'Meta realista: perder 0.5-1 kg por semana de forma sostenida.'
+        ]
+    };
+    if(bmi < 35.0) return {
+        level:'Obesidad Clase I', grade:'Moderada', icon:'🔶',
+        color:'#c0392b', bg:'rgba(192,57,43,0.10)', borderColor:'#e74c3c',
+        tips:[
+            'Consulta médico para descartar comorbilidades (HTA, diabetes, dislipidemia).',
+            'Déficit calórico de 500-700 kcal/día con seguimiento nutricional profesional.',
+            'Combina cardio diario (30-45 min) con entrenamiento de fuerza 3-4 días/semana.',
+            'Elimina bebidas calóricas, reduce sodio y azúcares añadidos.',
+            'Considera apoyo psicológico para hábitos y conducta alimentaria.'
+        ]
+    };
+    if(bmi < 40.0) return {
+        level:'Obesidad Clase II', grade:'Severa', icon:'🔴',
+        color:'#922b21', bg:'rgba(146,43,33,0.12)', borderColor:'#c0392b',
+        tips:[
+            'Atención médica especializada obligatoria — alto riesgo cardiovascular y metabólico.',
+            'Programa estructurado de pérdida de peso con médico, nutricionista y psicólogo.',
+            'Actividad física supervisada: iniciar con agua (natación/aquagym) para proteger articulaciones.',
+            'Evaluación para tratamiento farmacológico o quirúrgico (cirugía bariátrica) si aplica.',
+            'Monitoreo frecuente: glucosa, presión arterial, perfil lipídico y función hepática.'
+        ]
+    };
+    return {
+        level:'Obesidad Clase III', grade:'Mórbida / Extrema', icon:'🚨',
+        color:'#6E0000', bg:'rgba(110,0,0,0.15)', borderColor:'#8B0000',
+        tips:[
+            '⚠️ Riesgo vital muy elevado — requiere atención médica inmediata y multidisciplinaria.',
+            'Evaluación para cirugía bariátrica (manga gástrica, bypass) como opción terapéutica.',
+            'Monitoreo hospitalario de comorbilidades: apnea del sueño, cardiopatía, diabetes tipo 2.',
+            'Programa intensivo de cambio conductual con psiquiatría/psicología especializada.',
+            'Inicio de actividad física SOLO bajo supervisión médica y fisioterapia.'
+        ]
+    };
 }
 
 function getHealthSummary(contact){
-    if(!contact.height||!contact.weightHistory||!contact.weightHistory.length){
-        return null;
-    }
-    const latest=contact.weightHistory[contact.weightHistory.length-1].weight;
+    if(!contact.height||!contact.weightHistory||!contact.weightHistory.length) return null;
+    const hist=contact.weightHistory;
+    const latest=hist[hist.length-1].weight;
     const bmi=latest/(contact.height*contact.height);
     const info=getBmiLevel(bmi);
-    return {bmi,info,recommendation:info.tips[0]};
+    let trendText='',trendClass='';
+    if(hist.length>=2){
+        const delta=(hist[hist.length-1].weight-hist[hist.length-2].weight);
+        const abs=Math.abs(delta).toFixed(1);
+        if(delta>0.05){trendText=`▲ +${abs} kg desde último control`;trendClass='trend-up';}
+        else if(delta<-0.05){trendText=`▼ -${abs} kg desde último control`;trendClass='trend-down';}
+        else{trendText='→ Sin cambio';trendClass='trend-flat';}
+    }
+    return {bmi,info,recommendation:info.tips[0],trendText,trendClass,weight:latest};
 }
 
 function logWeight(id){
     const c=contacts.find(x=>x.id===id);if(!c) return;
-    if(!c.height){alert('Primero registra la talla de '+c.name+' (solo se guarda una vez).');editContact(id);return;}
-    const val=prompt('Ingresa el peso actual de '+c.name+' (kg):');
-    if(val===null) return;
-    const kg=Number(String(val).trim().replace(',', '.'));
-    if(!Number.isFinite(kg)||kg<20||kg>400){alert('Peso inválido. Ingresa un valor entre 20 y 400 kg.');return;}
+    if(!c.height){
+        document.getElementById('modalTitle').textContent='⚠️ Talla no registrada';
+        document.getElementById('modalBody').innerHTML=`<p style="color:var(--gray4);margin-bottom:16px;">Para calcular el IMC de <strong>${c.name}</strong> primero debes registrar su talla (solo se guarda una vez).</p><button class="btn" onclick="closeModal();editContact(${c.id})">Registrar talla ahora</button>`;
+        document.getElementById('noteModal').classList.add('open');return;
+    }
+    document.getElementById('modalTitle').textContent=`⚖️ Registrar Peso — ${c.name}`;
+    document.getElementById('modalBody').innerHTML=`
+        <div style="margin-bottom:18px;">
+            <label style="display:block;color:var(--gray4);font-weight:600;font-size:0.78em;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Peso actual (kg)</label>
+            <input id="weightInput" type="number" min="20" max="400" step="0.1" placeholder="Ej: 72.5"
+                style="width:100%;padding:13px 16px;border:2px solid var(--gray2);border-radius:var(--radius-sm);font-size:1.05em;font-family:var(--sans);"
+                onkeydown="if(event.key==='Enter') confirmLogWeight(${id})">
+            <p style="font-size:0.78em;color:var(--gray3);margin-top:6px;">Talla registrada: <strong>${c.height.toFixed(2)} m</strong></p>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <button class="btn btn-green btn-sm" style="flex:1;justify-content:center;" onclick="confirmLogWeight(${id})">✅ Registrar y ver Estado OMS</button>
+            <button class="btn btn-sm" style="background:var(--gray2);color:var(--gray5);flex:0 0 auto;" onclick="closeModal()">Cancelar</button>
+        </div>
+        <div id="weightResult" style="margin-top:18px;"></div>`;
+    document.getElementById('noteModal').classList.add('open');
+    setTimeout(()=>{const inp=document.getElementById('weightInput');if(inp)inp.focus();},200);
+}
+
+function confirmLogWeight(id){
+    const c=contacts.find(x=>x.id===id);if(!c) return;
+    const inp=document.getElementById('weightInput');if(!inp) return;
+    const kg=Number(String(inp.value).trim().replace(',','.'));
+    if(!Number.isFinite(kg)||kg<20||kg>400){
+        inp.style.borderColor='var(--red2)';
+        document.getElementById('weightResult').innerHTML='<p style="color:var(--red2);font-weight:600;">⚠️ Peso inválido. Ingresa un valor entre 20 y 400 kg.</p>';
+        return;
+    }
     if(!Array.isArray(c.weightHistory)) c.weightHistory=[];
     c.weightHistory.push({date:new Date().toISOString(),weight:kg});
     const bmi=kg/(c.height*c.height);
     const info=getBmiLevel(bmi);
-    const lastTwo=c.weightHistory.slice(-2);
-    let trend='Sin tendencia aún.';
-    if(lastTwo.length===2){
-        const delta=(lastTwo[1].weight-lastTwo[0].weight).toFixed(1);
-        trend=delta>0?`Subió ${delta} kg desde el último control.`:delta<0?`Bajó ${Math.abs(delta)} kg desde el último control.`:'Sin cambios desde el último control.';
+    const hist=c.weightHistory;
+    let trendHtml='';
+    if(hist.length>=2){
+        const delta=(hist[hist.length-1].weight-hist[hist.length-2].weight);
+        const abs=Math.abs(delta).toFixed(1);
+        trendHtml=delta>0.05?`<div style="color:#e74c3c;font-weight:600;">▲ +${abs} kg desde el último control</div>`
+            :delta<-0.05?`<div style="color:#27ae60;font-weight:600;">▼ -${abs} kg desde el último control</div>`
+            :`<div style="color:var(--gray3);">→ Sin cambios significativos</div>`;
     }
+    const tipsHtml=info.tips.map(t=>`<li style="margin-bottom:5px;">${t}</li>`).join('');
+    document.getElementById('weightResult').innerHTML=`
+        <div style="background:${info.bg};border:2px solid ${info.borderColor};border-radius:12px;padding:18px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+                <span style="font-size:2em;">${info.icon}</span>
+                <div>
+                    <div style="font-size:1.1em;font-weight:800;color:${info.color};">${info.level}</div>
+                    <div style="font-size:0.8em;color:var(--gray4);">${info.grade} · IMC: <strong>${bmi.toFixed(2)}</strong></div>
+                </div>
+            </div>
+            ${trendHtml}
+            <div style="margin-top:12px;">
+                <div style="font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray4);margin-bottom:8px;">🏥 Recomendaciones OMS</div>
+                <ul style="padding-left:18px;font-size:0.85em;color:var(--gray5);line-height:1.7;">${tipsHtml}</ul>
+            </div>
+        </div>`;
     saveContacts();renderContacts();
-    alert(`Nivel de ${c.name}: ${info.level}\nIMC: ${bmi.toFixed(1)}\n${trend}\n\nRecomendaciones:\n- ${info.tips.join('\n- ')}`);
+}
+
+function viewWeightHistory(id){
+    const c=contacts.find(x=>x.id===id);if(!c) return;
+    const hist=c.weightHistory||[];
+    document.getElementById('modalTitle').textContent=`📈 Historial de Peso — ${c.name}`;
+    if(!hist.length){
+        document.getElementById('modalBody').innerHTML=`<p style="color:var(--gray3);text-align:center;padding:30px;">Sin registros de peso aún.<br><button class="btn btn-sm" style="margin-top:12px;" onclick="closeModal();logWeight(${id})">⚖️ Registrar ahora</button></p>`;
+        document.getElementById('noteModal').classList.add('open');return;
+    }
+    const rows=hist.slice().reverse().map((entry,i)=>{
+        const d=new Date(entry.date).toLocaleDateString('es-PE',{day:'2-digit',month:'short',year:'numeric'});
+        const bmi=c.height?entry.weight/(c.height*c.height):null;
+        const info=bmi?getBmiLevel(bmi):null;
+        return `<tr style="${i%2===0?'background:var(--gray1)':''}">
+            <td style="padding:9px 14px;font-size:0.85em;">${d}</td>
+            <td style="padding:9px 14px;font-weight:700;">${entry.weight} kg</td>
+            <td style="padding:9px 14px;font-family:var(--mono);">${bmi?bmi.toFixed(2):'-'}</td>
+            <td style="padding:9px 14px;">${info?`<span style="font-size:0.78em;font-weight:700;color:${info.color};">${info.icon} ${info.level}</span>`:'-'}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('modalBody').innerHTML=`
+        <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-family:var(--sans);">
+            <thead><tr style="background:var(--blue1);color:#fff;">
+                <th style="padding:10px 14px;text-align:left;font-size:0.78em;letter-spacing:1px;">FECHA</th>
+                <th style="padding:10px 14px;text-align:left;font-size:0.78em;letter-spacing:1px;">PESO</th>
+                <th style="padding:10px 14px;text-align:left;font-size:0.78em;letter-spacing:1px;">IMC</th>
+                <th style="padding:10px 14px;text-align:left;font-size:0.78em;letter-spacing:1px;">ESTADO OMS</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+        <div style="margin-top:16px;display:flex;gap:10px;">
+            <button class="btn btn-sm btn-green" onclick="closeModal();logWeight(${id})">⚖️ Nuevo Registro</button>
+        </div>`;
+    document.getElementById('noteModal').classList.add('open');
+}
+
+/* ======= EXCEL EXPORT ======= */
+function exportToExcel(){
+    if(typeof XLSX === 'undefined'){alert('Librería Excel no disponible. Verifica tu conexión a internet.');return;}
+    const wb=XLSX.utils.book_new();
+
+    /* ── Hoja 1: NOTAS ── */
+    const notesData=[['ID','Título','Descripción','Fecha','Tipo Métrica','Prioridad','Tipo Evento','Completado','Recurrente','Personas Asignadas']];
+    notes.forEach(n=>{
+        const people=(n.people||[]).map(pid=>{const c=contacts.find(x=>x.id===pid);return c?c.name:'';}).filter(Boolean).join(', ');
+        const prioLabel={alta:'Alta',media:'Media',baja:'Baja'}[n.priority]||n.priority;
+        notesData.push([n.id,n.title,n.desc,n.date,metricLabelMap[n.metricType||'peso']||n.metricType,prioLabel,n.type,n.completed?'Sí':'No',n.isRecurring?'Sí':'No',people]);
+    });
+    const wsNotes=XLSX.utils.aoa_to_sheet(notesData);
+    wsNotes['!cols']=[{wch:14},{wch:30},{wch:40},{wch:12},{wch:16},{wch:10},{wch:14},{wch:12},{wch:12},{wch:35}];
+    XLSX.utils.book_append_sheet(wb,wsNotes,'Notas y Registros');
+
+    /* ── Hoja 2: CONTACTOS + ESTADO OMS ── */
+    const contactsData=[['ID','Nombre','Teléfono','Email','Categoría','Talla (m)','Último Peso (kg)','IMC','Estado OMS','Grado OMS','# Registros']];
+    contacts.forEach(c=>{
+        const hist=c.weightHistory||[];
+        const lastW=hist.length?hist[hist.length-1].weight:null;
+        const bmi=(lastW&&c.height)?lastW/(c.height*c.height):null;
+        const info=bmi?getBmiLevel(bmi):null;
+        contactsData.push([c.id,c.name,c.phone||'',c.email||'',c.category,c.height?c.height.toFixed(2):'',lastW||'',bmi?bmi.toFixed(2):'',info?info.level:'',info?info.grade:'',hist.length]);
+    });
+    const wsContacts=XLSX.utils.aoa_to_sheet(contactsData);
+    wsContacts['!cols']=[{wch:14},{wch:25},{wch:16},{wch:28},{wch:12},{wch:10},{wch:14},{wch:8},{wch:22},{wch:18},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,wsContacts,'Contactos y Estado OMS');
+
+    /* ── Hoja 3: HISTORIAL DE PESO ── */
+    const histData=[['Nombre','Fecha','Hora','Peso (kg)','Talla (m)','IMC','Estado OMS','Grado OMS','Recomendación Principal']];
+    contacts.forEach(c=>{
+        (c.weightHistory||[]).forEach(entry=>{
+            const d=new Date(entry.date);
+            const bmi=c.height?entry.weight/(c.height*c.height):null;
+            const info=bmi?getBmiLevel(bmi):null;
+            histData.push([c.name,d.toLocaleDateString('es-PE'),d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}),entry.weight,c.height?c.height.toFixed(2):'',bmi?bmi.toFixed(2):'',info?info.level:'',info?info.grade:'',info?info.tips[0]:'']);
+        });
+    });
+    const wsHist=XLSX.utils.aoa_to_sheet(histData);
+    wsHist['!cols']=[{wch:25},{wch:12},{wch:8},{wch:10},{wch:10},{wch:8},{wch:22},{wch:18},{wch:55}];
+    XLSX.utils.book_append_sheet(wb,wsHist,'Historial de Peso');
+
+    /* ── Hoja 4: RESUMEN EJECUTIVO ── */
+    const today=new Date().toLocaleDateString('es-PE',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    const totalContacts=contacts.length;
+    const withWeight=contacts.filter(c=>c.weightHistory&&c.weightHistory.length>0).length;
+    const bmiCounts={};
+    contacts.forEach(c=>{
+        const hist=c.weightHistory||[];if(!hist.length||!c.height) return;
+        const bmi=hist[hist.length-1].weight/(c.height*c.height);
+        const level=getBmiLevel(bmi).level;
+        bmiCounts[level]=(bmiCounts[level]||0)+1;
+    });
+    const summaryData=[
+        ['RESUMEN EJECUTIVO — AGENDA MÉDICA'],['Generado:',today],[''],
+        ['TOTAL CONTACTOS',totalContacts],['Con peso registrado',withWeight],['Sin datos de peso',totalContacts-withWeight],[''],
+        ['DISTRIBUCIÓN POR ESTADO OMS','Cantidad'],
+        ...Object.entries(bmiCounts).map(([k,v])=>[k,v]),[''],
+        ['NOTAS TOTALES',notes.length],['Completadas',notes.filter(n=>n.completed).length],['Pendientes',notes.filter(n=>!n.completed&&!n.isRecurring).length],['Recurrentes',notes.filter(n=>n.isRecurring).length]
+    ];
+    const wsSummary=XLSX.utils.aoa_to_sheet(summaryData);
+    wsSummary['!cols']=[{wch:30},{wch:20}];
+    XLSX.utils.book_append_sheet(wb,wsSummary,'Resumen Ejecutivo');
+
+    const filename=`Agenda_Leider_${new Date().toISOString().slice(0,10)}.xlsx`;
+    XLSX.writeFile(wb,filename);
 }
 
 // ======= NOTES (with people) =======
