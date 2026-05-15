@@ -2,77 +2,101 @@
  * ============================================================
  * GOOGLE APPS SCRIPT — Agenda Leider Tisnado Mego
  * ============================================================
- * INSTRUCCIONES DE INSTALACIÓN:
- * 1. Ve a https://script.google.com y crea un nuevo proyecto.
- * 2. Pega TODO este código reemplazando el contenido existente.
- * 3. Menú Extensions > Apps Script > Deploy > New deployment.
- *    - Tipo: Web app
- *    - Execute as: Me
- *    - Who has access: Anyone
- * 4. Copia la URL generada (termina en /exec).
- * 5. Pégala en index.html en la variable: const SHEET_URL = 'TU_URL';
+ * PASO 1 — Pega el ID de tu Google Sheet existente:
+ *   Abre tu Sheet → URL: .../spreadsheets/d/ESTE_ID/edit
+ *   Copia el ID y pégalo abajo en SPREADSHEET_ID.
+ *
+ * PASO 2 — Despliega como Web App:
+ *   Deploy → New deployment → Web app
+ *   Execute as: Me | Who has access: Anyone
+ *
+ * PASO 3 — Copia la URL /exec y pégala en index.html en SHEET_URL
  * ============================================================
  */
 
-const SPREADSHEET_ID = ''; // Opcional: ID de tu Google Sheet específico
-                             // Si lo dejas vacío, se crea uno automáticamente.
+// ⚠️ OBLIGATORIO: Pega aquí el ID de tu Google Sheet
+const SPREADSHEET_ID = '';  // Ej: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms'
+
 const SHEET_NAME_NOTES    = 'Notas';
 const SHEET_NAME_CONTACTS = 'Contactos';
 
-// ── Punto de entrada GET (usado por JSONP) ──────────────────
-function doGet(e) {
-  const params  = e.parameter || {};
-  const action  = params.action || 'getAll';
-  const callback = params.callback; // JSONP callback name
+// ── Obtiene el spreadsheet (nunca crea uno nuevo) ──────────
+function getSpreadsheet() {
+  // 1. Usar ID hardcodeado si está definido
+  if (SPREADSHEET_ID) {
+    return SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
 
-  let result;
+  // 2. Buscar en script properties (del deploy anterior)
+  var props = PropertiesService.getScriptProperties();
+  var storedId = props.getProperty('SPREADSHEET_ID');
+  if (storedId) {
+    try { return SpreadsheetApp.openById(storedId); } catch (e) {}
+  }
+
+  // 3. Buscar por nombre en Drive (encuentra el sheet existente)
+  var files = DriveApp.getFilesByName('Agenda — Leider Tisnado Mego');
+  if (files.hasNext()) {
+    var file = files.next();
+    var ss = SpreadsheetApp.openById(file.getId());
+    props.setProperty('SPREADSHEET_ID', file.getId());
+    return ss;
+  }
+
+  // 4. Último recurso: crear uno nuevo (solo si no existe ninguno)
+  var newSs = SpreadsheetApp.create('Agenda — Leider Tisnado Mego');
+  props.setProperty('SPREADSHEET_ID', newSs.getId());
+  return newSs;
+}
+
+// ── Función de diagnóstico (ejecútala manualmente para ver cuál sheet usa) ──
+function diagnostico() {
+  var ss = getSpreadsheet();
+  Logger.log('Spreadsheet: ' + ss.getName());
+  Logger.log('ID: ' + ss.getId());
+  Logger.log('URL: ' + ss.getUrl());
+  var notas = ss.getSheetByName(SHEET_NAME_NOTES);
+  var contactos = ss.getSheetByName(SHEET_NAME_CONTACTS);
+  Logger.log('Hoja Notas: ' + (notas ? notas.getLastRow() - 1 + ' filas' : 'NO ENCONTRADA'));
+  Logger.log('Hoja Contactos: ' + (contactos ? contactos.getLastRow() - 1 + ' filas' : 'NO ENCONTRADA'));
+}
+
+// ── Punto de entrada GET (JSONP) ────────────────────────────
+function doGet(e) {
+  var params   = e.parameter || {};
+  var action   = params.action || 'getAll';
+  var callback = params.callback;
+
+  var result;
   try {
-    switch (action) {
-      case 'getAll':
-        result = getAllData();
-        break;
-      case 'saveAll':
-        result = saveAll(params);
-        break;
-      default:
-        result = { success: false, error: 'Acción desconocida: ' + action };
-    }
+    if (action === 'getAll')       result = getAllData();
+    else if (action === 'saveAll') result = saveAll(params);
+    else                           result = { success: false, error: 'Acción desconocida: ' + action };
   } catch (err) {
     result = { success: false, error: err.message };
   }
 
-  const json = JSON.stringify(result);
-
-  // Si viene con callback → respuesta JSONP
+  var json = JSON.stringify(result);
   if (callback) {
     return ContentService
       .createTextOutput(callback + '(' + json + ')')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
-
-  // Si no → JSON plano (útil para pruebas en el navegador)
   return ContentService
     .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ── Punto de entrada POST (fallback para payloads grandes) ──
+// ── Punto de entrada POST (payloads grandes) ────────────────
 function doPost(e) {
-  let params;
-  try {
-    params = JSON.parse(e.postData.contents);
-  } catch (_) {
-    params = e.parameter || {};
-  }
+  var params;
+  try   { params = JSON.parse(e.postData.contents); }
+  catch (_) { params = e.parameter || {}; }
 
-  let result;
+  var result;
   try {
-    const action = params.action || 'saveAll';
-    if (action === 'saveAll') {
-      result = saveAll(params);
-    } else {
-      result = { success: false, error: 'Acción POST desconocida: ' + action };
-    }
+    if ((params.action || 'saveAll') === 'saveAll') result = saveAll(params);
+    else result = { success: false, error: 'Acción desconocida' };
   } catch (err) {
     result = { success: false, error: err.message };
   }
@@ -82,105 +106,87 @@ function doPost(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ── Obtiene o crea el spreadsheet ──────────────────────────
-function getSpreadsheet() {
-  if (SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(SPREADSHEET_ID);
-  }
-  const props = PropertiesService.getScriptProperties();
-  let id = props.getProperty('SPREADSHEET_ID');
-  if (id) {
-    try { return SpreadsheetApp.openById(id); } catch (_) {}
-  }
-  // Crear uno nuevo
-  const ss = SpreadsheetApp.create('Agenda — Leider Tisnado Mego');
-  props.setProperty('SPREADSHEET_ID', ss.getId());
-  return ss;
-}
-
-// ── Obtiene o crea una hoja por nombre ─────────────────────
-function getSheet(ss, name) {
-  return ss.getSheetByName(name) || ss.insertSheet(name);
-}
-
-// ── Lee todos los datos ────────────────────────────────────
+// ── Lee todos los datos ─────────────────────────────────────
 function getAllData() {
-  const ss       = getSpreadsheet();
-  const notes    = readSheet(ss, SHEET_NAME_NOTES);
-  const contacts = readSheet(ss, SHEET_NAME_CONTACTS);
+  var ss       = getSpreadsheet();
+  var notes    = readSheet(ss, SHEET_NAME_NOTES);
+  var contacts = readSheet(ss, SHEET_NAME_CONTACTS);
   return { success: true, notes: notes, contacts: contacts };
 }
 
 function readSheet(ss, name) {
-  const sheet = ss.getSheetByName(name);
+  var sheet = ss.getSheetByName(name);
   if (!sheet) return [];
-  const lastRow = sheet.getLastRow();
+  var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
-  const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-  const header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return [];
+  var header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var data   = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   return data.map(function(row) {
-    const obj = {};
-    header.forEach(function(key, i) { obj[key] = row[i]; });
+    var obj = {};
+    header.forEach(function(key, i) {
+      var val = row[i];
+      // Convertir fechas de Google Sheets a string ISO
+      if (val instanceof Date) {
+        obj[key] = Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        obj[key] = val;
+      }
+    });
     return obj;
   });
 }
 
-// ── Guarda todos los datos ─────────────────────────────────
+// ── Guarda todos los datos ──────────────────────────────────
 function saveAll(params) {
-  const ss = getSpreadsheet();
+  var ss = getSpreadsheet();
+  var notesArr, contactsArr;
 
-  let notesArr, contactsArr;
   try {
     notesArr    = JSON.parse(decodeURIComponent(params.notes    || '[]'));
     contactsArr = JSON.parse(decodeURIComponent(params.contacts || '[]'));
   } catch (_) {
-    // Si ya vienen como objetos (POST JSON)
-    notesArr    = params.notes    || [];
-    contactsArr = params.contacts || [];
+    notesArr    = Array.isArray(params.notes)    ? params.notes    : [];
+    contactsArr = Array.isArray(params.contacts) ? params.contacts : [];
   }
 
-  writeNotes(ss, notesArr);
-  writeContacts(ss, contactsArr);
+  if (Array.isArray(notesArr))    writeNotes(ss, notesArr);
+  if (Array.isArray(contactsArr)) writeContacts(ss, contactsArr);
 
   return { success: true, saved: { notes: notesArr.length, contacts: contactsArr.length } };
 }
 
-// ── Escribe notas ──────────────────────────────────────────
+// ── Escribe notas ───────────────────────────────────────────
 function writeNotes(ss, notes) {
-  const sheet = getSheet(ss, SHEET_NAME_NOTES);
+  var sheet   = getOrCreateSheet(ss, SHEET_NAME_NOTES);
+  var headers = ['id','title','desc','date','priority','type','metricType',
+                 'completed','isRecurring','people'];
   sheet.clearContents();
-
-  const headers = ['id','title','desc','date','priority','type','metricType',
-                   'completed','isRecurring','people'];
   sheet.appendRow(headers);
-
   notes.forEach(function(n) {
     sheet.appendRow([
-      n.id        || '',
-      n.title     || '',
-      n.desc      || '',
-      n.date      || '',
-      n.priority  || '',
-      n.type      || '',
-      n.metricType|| 'peso',
-      n.completed ? 'true' : 'false',
+      n.id         || '',
+      n.title      || '',
+      n.desc       || '',
+      n.date       || '',
+      n.priority   || '',
+      n.type       || '',
+      n.metricType || 'peso',
+      n.completed  ? 'true' : 'false',
       n.isRecurring ? 'true' : 'false',
       JSON.stringify(n.people || [])
     ]);
   });
-
-  // Formato cabecera
   styleHeader(sheet, headers.length);
 }
 
-// ── Escribe contactos ──────────────────────────────────────
+// ── Escribe contactos ───────────────────────────────────────
 function writeContacts(ss, contacts) {
-  const sheet = getSheet(ss, SHEET_NAME_CONTACTS);
+  var sheet   = getOrCreateSheet(ss, SHEET_NAME_CONTACTS);
+  var headers = ['id','name','phone','email','category','height','weightHistory'];
   sheet.clearContents();
-
-  const headers = ['id','name','phone','email','category','height','weightHistory'];
   sheet.appendRow(headers);
-
   contacts.forEach(function(c) {
     sheet.appendRow([
       c.id       || '',
@@ -188,19 +194,23 @@ function writeContacts(ss, contacts) {
       c.phone    || '',
       c.email    || '',
       c.category || '',
-      c.height   || '',
+      c.height   != null ? c.height : '',
       JSON.stringify(c.weightHistory || [])
     ]);
   });
-
   styleHeader(sheet, headers.length);
 }
 
-// ── Estilo visual para cabecera ────────────────────────────
+// ── Obtiene o crea una hoja ─────────────────────────────────
+function getOrCreateSheet(ss, name) {
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+// ── Estilo de cabecera ──────────────────────────────────────
 function styleHeader(sheet, numCols) {
-  const headerRange = sheet.getRange(1, 1, 1, numCols);
-  headerRange.setBackground('#1e3c72');
-  headerRange.setFontColor('#ffffff');
-  headerRange.setFontWeight('bold');
+  var range = sheet.getRange(1, 1, 1, numCols);
+  range.setBackground('#1e3c72');
+  range.setFontColor('#ffffff');
+  range.setFontWeight('bold');
   sheet.setFrozenRows(1);
 }
