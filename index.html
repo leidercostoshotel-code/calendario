@@ -852,14 +852,19 @@ function updateTitlePlaceholder(){
     desc.placeholder=descPlaceholders[metric]||'Describe observaciones importantes';
 }
 
-function getSmartHealthSummary(peopleIds){
+function getSmartHealthSummary(peopleIds, note){
     if(!peopleIds||!peopleIds.length) return '';
+    const noteWeight=(note&&note.metricType==='peso')?Number(String(note.title).trim().replace(',','.')):null;
+    const validNoteWeight=(noteWeight&&Number.isFinite(noteWeight)&&noteWeight>=20&&noteWeight<=400)?noteWeight:null;
     const panels=peopleIds.map(pid=>{
         const c=contacts.find(x=>x.id===pid);
-        if(!c||!c.height||!c.weightHistory||!c.weightHistory.length) return '';
-        const hist=c.weightHistory;
-        const latest=hist[hist.length-1];
-        const bmi=latest.weight/(c.height*c.height);
+        if(!c||!c.height) return '';
+        const hasHistory=c.weightHistory&&c.weightHistory.length>0;
+        if(!hasHistory&&!validNoteWeight) return '';
+        const hist=c.weightHistory||[];
+        const latestEntry=hist.length?hist[hist.length-1]:null;
+        const weightUsed=latestEntry?latestEntry.weight:validNoteWeight;
+        const bmi=weightUsed/(c.height*c.height);
         const info=getBmiLevel(bmi);
         const col=getAvatarColor(c.name);
         let trend='';
@@ -1270,10 +1275,27 @@ function getRelevantNotes(dateStr,currentYear){
     return notes.filter(n=>{if(!n.date) return false;if(n.date===dateStr) return true;if(n.isRecurring&&n.date.substring(5)===md) return true;return false;});
 }
 
+function autoLogWeightFromNote(metricType, title, date, peopleIds){
+    if(metricType!=='peso'||!peopleIds||!peopleIds.length) return;
+    const kg=Number(String(title).trim().replace(',','.'));
+    if(!Number.isFinite(kg)||kg<20||kg>400) return;
+    let changed=false;
+    peopleIds.forEach(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height) return;
+        if(!Array.isArray(c.weightHistory)) c.weightHistory=[];
+        const isoDate=(date||new Date().toISOString().slice(0,10))+'T12:00:00.000Z';
+        const already=c.weightHistory.find(e=>e.date.slice(0,10)===(date||new Date().toISOString().slice(0,10))&&e.weight===kg);
+        if(!already){c.weightHistory.push({date:isoDate,weight:kg});changed=true;}
+    });
+    if(changed) saveContacts();
+}
+
 function addNote(){
     const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value,metricType=document.getElementById('noteMetricType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
+    autoLogWeightFromNote(metricType,title,date,[...selectedPersonIds]);
     notes.push({id:Date.now(),title,desc,date,priority,type,metricType,completed:false,isRecurring,people:[...selectedPersonIds]});
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
 }
@@ -1296,6 +1318,7 @@ function saveChanges(){
     const isRecurring=(type==='cumplea\u00f1os');
     notes[i]={...notes[i],title,desc,date,priority,type,metricType,isRecurring,people:[...selectedPersonIds]};
     if(isRecurring) notes[i].completed=false;
+    autoLogWeightFromNote(metricType,title,date,[...selectedPersonIds]);
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
 }
 function resetNoteForm(){
@@ -1363,7 +1386,7 @@ function renderNoteCard(n){
         ${getPeopleHTML(n.people)}
         <div class="note-date">📌 Tipo: ${metricLabelMap[n.metricType||'peso']}</div>
         <div class="note-date">⚖️ Intensidad: ${n.priority==='alta'?'Alta':n.priority==='media'?'Media':'Baja'}</div>
-        ${getSmartHealthSummary(n.people)}
+        ${getSmartHealthSummary(n.people, n)}
         <div class="note-date">\ud83d\udcc5 ${n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'Fecha no definida'}${n.isRecurring?' (Recurrente Anual)':''}</div>
         ${n.completed&&!n.isRecurring?'<div style="margin-top:10px;font-weight:bold;">\u2728 Completado</div>':''}
     </div>`;
