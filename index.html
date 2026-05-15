@@ -440,7 +440,16 @@
         <div class="main-grid">
             <div class="card note-form" id="noteFormCard">
                 <h2><span class="icon-3d">&#10024;</span> Agregar / Editar Peso</h2>
-                <div class="input-group"><label>&#128221; T&iacute;tulo</label><input type="text" id="noteTitle" placeholder="T&iacute;tulo del registro"></div>
+                <div class="input-group"><label>&#128200; Tipo de Registro</label>
+                    <select id="noteMetricType" onchange="updateTitlePlaceholder()">
+                        <option value="peso">⚖️ Peso</option>
+                        <option value="presion">🩺 Presión</option>
+                        <option value="glucosa">🧪 Glucosa</option>
+                        <option value="entrenamiento">🏃 Entrenamiento</option>
+                        <option value="otro">📝 Otro</option>
+                    </select>
+                </div>
+                <div class="input-group"><label>&#128221; T&iacute;tulo del Registro</label><input type="text" id="noteTitle" placeholder="Registro de peso"></div>
                 <div class="input-group"><label>&#128196; Observaciones</label><textarea id="noteDesc" placeholder="Describe observaciones del peso"></textarea></div>
                 <div class="input-group"><label>&#128197; Fecha</label><input type="date" id="noteDate"></div>
                 <div class="input-group"><label>&#9889; Peso</label>
@@ -546,6 +555,8 @@ function getInitials(name){const p=name.trim().split(/\s+/);return p.length>=2?(
 
 // ======= DATA =======
 let currentDate=new Date(),notes=[],contacts=[],editingNoteId=null,editingContactId=null,selectedPersonIds=[],holidays={},acIndex=-1;
+
+const metricLabelMap={peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Otro'};
 
 const peruHolidays2025={'2025-01-01':'A\u00f1o Nuevo','2025-04-17':'Jueves Santo','2025-04-18':'Viernes Santo','2025-05-01':'D\u00eda del Trabajo','2025-06-29':'San Pedro y San Pablo','2025-07-28':'Fiestas Patrias','2025-07-29':'Fiestas Patrias','2025-08-30':'Santa Rosa de Lima','2025-10-08':'Combate de Angamos','2025-11-01':'Todos los Santos','2025-12-08':'Inmaculada Concepci\u00f3n','2025-12-09':'Batalla de Ayacucho','2025-12-25':'Navidad'};
 const peruHolidays2026={'2026-01-01':'A\u00f1o Nuevo','2026-04-02':'Jueves Santo','2026-04-03':'Viernes Santo','2026-05-01':'D\u00eda del Trabajo','2026-06-29':'San Pedro y San Pablo','2026-07-28':'Fiestas Patrias','2026-07-29':'Fiestas Patrias','2026-08-30':'Santa Rosa de Lima','2026-10-08':'Combate de Angamos','2026-11-01':'Todos los Santos','2026-12-08':'Inmaculada Concepci\u00f3n','2026-12-09':'Batalla de Ayacucho','2026-12-25':'Navidad'};
@@ -727,6 +738,7 @@ function saveNotes(){localStorage.setItem('agendaNotes',JSON.stringify(notes));c
 function loadContacts(){const s=localStorage.getItem('agendaContacts');if(s) contacts=JSON.parse(s);contacts=contacts.map(c=>({...c,height:c.height?Number(c.height):null,weightHistory:Array.isArray(c.weightHistory)?c.weightHistory:[]}));}
 function saveContacts(){localStorage.setItem('agendaContacts',JSON.stringify(contacts));cloudSave();}
 loadNotes();loadContacts();
+notes=notes.map(n=>({...n,metricType:n.metricType||'peso'}));
 
 // ======= TABS =======
 function switchTab(tab){
@@ -795,6 +807,30 @@ function renderSelectedPersons(){
 }
 
 // ======= CONTACTS CRUD =======
+
+function updateTitlePlaceholder(){
+    const metric=document.getElementById('noteMetricType').value;
+    const title=document.getElementById('noteTitle');
+    const desc=document.getElementById('noteDesc');
+    const placeholders={peso:'Registro de peso',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
+    const descPlaceholders={peso:'Describe observaciones del peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
+    title.placeholder=placeholders[metric]||'Título del registro';
+    desc.placeholder=descPlaceholders[metric]||'Describe observaciones importantes';
+}
+
+function getSmartHealthSummary(peopleIds){
+    if(!peopleIds||!peopleIds.length) return '';
+    const lines=peopleIds.map(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height||!c.weightHistory||!c.weightHistory.length) return '';
+        const latest=c.weightHistory[c.weightHistory.length-1];
+        const bmi=latest.weight/(c.height*c.height);
+        const info=getBmiLevel(bmi);
+        return `<div class="note-date">🧠 ${c.name}: <strong style="color:${info.color};">${info.level}</strong>. Plan sugerido: ${info.tips[0]}</div>`;
+    }).filter(Boolean);
+    return lines.join('');
+}
+
 function addContact(){
     const name=document.getElementById('contactName').value.trim();
     const phone=document.getElementById('contactPhone').value.trim();
@@ -915,10 +951,10 @@ function getRelevantNotes(dateStr,currentYear){
 }
 
 function addNote(){
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value,metricType=document.getElementById('noteMetricType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
-    notes.push({id:Date.now(),title,desc,date,priority,type,completed:false,isRecurring,people:[...selectedPersonIds]});
+    notes.push({id:Date.now(),title,desc,date,priority,type,metricType,completed:false,isRecurring,people:[...selectedPersonIds]});
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
 }
 function editNote(id){
@@ -926,6 +962,8 @@ function editNote(id){
     document.getElementById('noteTitle').value=n.title;document.getElementById('noteDesc').value=n.desc;
     document.getElementById('noteDate').value=n.date;document.getElementById('noteWeight').value=n.priority||'baja';
     document.getElementById('noteType').value=n.type;
+    document.getElementById('noteMetricType').value=n.metricType||'peso';
+    updateTitlePlaceholder();
     selectedPersonIds=[...(n.people||[])];renderSelectedPersons();
     document.getElementById('addNoteBtn').style.display='none';document.getElementById('saveNoteBtn').style.display='block';
     editingNoteId=id;switchTab('agenda');
@@ -933,17 +971,17 @@ function editNote(id){
 }
 function saveChanges(){
     if(!editingNoteId) return;const i=notes.findIndex(n=>n.id===editingNoteId);if(i===-1) return;
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value,metricType=document.getElementById('noteMetricType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
-    notes[i]={...notes[i],title,desc,date,priority,type,isRecurring,people:[...selectedPersonIds]};
+    notes[i]={...notes[i],title,desc,date,priority,type,metricType,isRecurring,people:[...selectedPersonIds]};
     if(isRecurring) notes[i].completed=false;
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
 }
 function resetNoteForm(){
     ['noteTitle','noteDesc'].forEach(x=>document.getElementById(x).value='');
     const _rd=new Date();document.getElementById('noteDate').value=_rd.getFullYear()+'-'+String(_rd.getMonth()+1).padStart(2,'0')+'-'+String(_rd.getDate()).padStart(2,'0');
-    document.getElementById('noteWeight').value='baja';document.getElementById('noteType').value='tarea';
+    document.getElementById('noteWeight').value='baja';document.getElementById('noteType').value='tarea';document.getElementById('noteMetricType').value='peso';updateTitlePlaceholder();
     document.getElementById('addNoteBtn').style.display='block';document.getElementById('saveNoteBtn').style.display='none';
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
 }
@@ -1003,7 +1041,9 @@ function renderNoteCard(n){
         <h3>${n.isRecurring?'\ud83c\udf82 ':''}${n.title}</h3>
         <p><strong>Observaciones:</strong> ${n.desc}</p>
         ${getPeopleHTML(n.people)}
-        <div class="note-date">⚖️ Peso: ${n.priority==='alta'?'Alto':n.priority==='media'?'Medio':'Bajo'}</div>
+        <div class="note-date">📌 Tipo: ${metricLabelMap[n.metricType||'peso']}</div>
+        <div class="note-date">⚖️ Intensidad: ${n.priority==='alta'?'Alta':n.priority==='media'?'Media':'Baja'}</div>
+        ${getSmartHealthSummary(n.people)}
         <div class="note-date">\ud83d\udcc5 ${n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'Fecha no definida'}${n.isRecurring?' (Recurrente Anual)':''}</div>
         ${n.completed&&!n.isRecurring?'<div style="margin-top:10px;font-weight:bold;">\u2728 Completado</div>':''}
     </div>`;
@@ -1125,6 +1165,7 @@ function showDayNotes(ds){
 
 // INIT
 const _id=new Date();document.getElementById('noteDate').value=_id.getFullYear()+'-'+String(_id.getMonth()+1).padStart(2,'0')+'-'+String(_id.getDate()).padStart(2,'0');
+updateTitlePlaceholder();
 renderCalendar();updateTicker();checkTodayAlerts();
 
 // ======= CLOUD SYNC INIT =======
