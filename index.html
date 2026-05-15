@@ -439,12 +439,12 @@
     <div class="tab-content active" id="tab-agenda">
         <div class="main-grid">
             <div class="card note-form" id="noteFormCard">
-                <h2><span class="icon-3d">&#10024;</span> Agregar / Editar Nota</h2>
-                <div class="input-group"><label>&#128221; T&iacute;tulo</label><input type="text" id="noteTitle" placeholder="T&iacute;tulo de tu nota"></div>
-                <div class="input-group"><label>&#128196; Descripci&oacute;n</label><textarea id="noteDesc" placeholder="Describe tu nota o recordatorio"></textarea></div>
+                <h2><span class="icon-3d">&#10024;</span> Agregar / Editar Peso</h2>
+                <div class="input-group"><label>&#128221; T&iacute;tulo</label><input type="text" id="noteTitle" placeholder="T&iacute;tulo del registro"></div>
+                <div class="input-group"><label>&#128196; Observaciones</label><textarea id="noteDesc" placeholder="Describe observaciones del peso"></textarea></div>
                 <div class="input-group"><label>&#128197; Fecha</label><input type="date" id="noteDate"></div>
-                <div class="input-group"><label>&#9889; Prioridad</label>
-                    <select id="notePriority"><option value="baja">&#128994; Baja</option><option value="media">&#128993; Media</option><option value="alta">&#128308; Alta</option></select>
+                <div class="input-group"><label>&#9889; Peso</label>
+                    <select id="noteWeight"><option value="baja">⚖️ Bajo</option><option value="media">⚖️ Medio</option><option value="alta">⚖️ Alto</option></select>
                 </div>
                 <div class="input-group"><label>&#127874; Tipo de Evento</label>
                     <select id="noteType"><option value="tarea">&#128203; Tarea Normal</option><option value="cumplea&ntilde;os">&#127874; Cumplea&ntilde;os / Aniversario (Recurrente)</option></select>
@@ -457,7 +457,7 @@
                     </div>
                     <div class="person-tags" id="selectedPersons"></div>
                 </div>
-                <button class="btn" id="addNoteBtn" onclick="addNote()">&#10133; Agregar Nota</button>
+                <button class="btn" id="addNoteBtn" onclick="addNote()">&#10133; Agregar Peso</button>
                 <button class="btn btn-green" id="saveNoteBtn" style="display:none;" onclick="saveChanges()">&#128190; Guardar Cambios</button>
             </div>
 
@@ -915,7 +915,7 @@ function getRelevantNotes(dateStr,currentYear){
 }
 
 function addNote(){
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
     notes.push({id:Date.now(),title,desc,date,priority,type,completed:false,isRecurring,people:[...selectedPersonIds]});
@@ -924,7 +924,7 @@ function addNote(){
 function editNote(id){
     closeModal();const n=notes.find(x=>x.id===id);if(!n) return;
     document.getElementById('noteTitle').value=n.title;document.getElementById('noteDesc').value=n.desc;
-    document.getElementById('noteDate').value=n.date;document.getElementById('notePriority').value=n.priority;
+    document.getElementById('noteDate').value=n.date;document.getElementById('noteWeight').value=n.priority||'baja';
     document.getElementById('noteType').value=n.type;
     selectedPersonIds=[...(n.people||[])];renderSelectedPersons();
     document.getElementById('addNoteBtn').style.display='none';document.getElementById('saveNoteBtn').style.display='block';
@@ -933,7 +933,7 @@ function editNote(id){
 }
 function saveChanges(){
     if(!editingNoteId) return;const i=notes.findIndex(n=>n.id===editingNoteId);if(i===-1) return;
-    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('notePriority').value,type=document.getElementById('noteType').value;
+    const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
     const isRecurring=(type==='cumplea\u00f1os');
     notes[i]={...notes[i],title,desc,date,priority,type,isRecurring,people:[...selectedPersonIds]};
@@ -943,7 +943,7 @@ function saveChanges(){
 function resetNoteForm(){
     ['noteTitle','noteDesc'].forEach(x=>document.getElementById(x).value='');
     const _rd=new Date();document.getElementById('noteDate').value=_rd.getFullYear()+'-'+String(_rd.getMonth()+1).padStart(2,'0')+'-'+String(_rd.getDate()).padStart(2,'0');
-    document.getElementById('notePriority').value='baja';document.getElementById('noteType').value='tarea';
+    document.getElementById('noteWeight').value='baja';document.getElementById('noteType').value='tarea';
     document.getElementById('addNoteBtn').style.display='block';document.getElementById('saveNoteBtn').style.display='none';
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
 }
@@ -1001,8 +1001,9 @@ function renderNoteCard(n){
             <button class="action-btn" onclick="deleteNote(${n.id})" title="Eliminar">&#128465;&#65039;</button>
         </div>
         <h3>${n.isRecurring?'\ud83c\udf82 ':''}${n.title}</h3>
-        <p>${n.desc}</p>
+        <p><strong>Observaciones:</strong> ${n.desc}</p>
         ${getPeopleHTML(n.people)}
+        <div class="note-date">⚖️ Peso: ${n.priority==='alta'?'Alto':n.priority==='media'?'Medio':'Bajo'}</div>
         <div class="note-date">\ud83d\udcc5 ${n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'Fecha no definida'}${n.isRecurring?' (Recurrente Anual)':''}</div>
         ${n.completed&&!n.isRecurring?'<div style="margin-top:10px;font-weight:bold;">\u2728 Completado</div>':''}
     </div>`;
@@ -1107,7 +1108,7 @@ function showDayNotes(ds){
         sd.forEach(n=>{
             const ir=n.isRecurring,st=ir?'Evento Anual':(n.completed?'Completado':'Pendiente'),sc=ir?'':(n.completed?'':'pending');
             mb+=`<div class="modal-note-item priority-${n.priority} ${ir?'birthday':''} ${n.completed&&!ir?'completed':''}">
-                <h4>${ir?'\ud83c\udf82 ':''}${n.title}</h4><p>${n.desc}</p>
+                <h4>${ir?'\ud83c\udf82 ':''}${n.title}</h4><p><strong>Observaciones:</strong> ${n.desc}</p>
                 ${getPeopleHTML(n.people)}
                 <div class="modal-status ${sc}">${st}</div>
                 <div class="modal-actions">
