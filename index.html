@@ -136,32 +136,39 @@
         .person-tag .tag-remove{cursor:pointer;opacity:0.7;transition:opacity 0.2s;font-size:1.1em;}
         .person-tag .tag-remove:hover{opacity:1;}
 
-        /* CALENDAR */
-        .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:18px;}
-        .calendar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
-        .calendar-header button{background:linear-gradient(135deg,var(--blue1),var(--blue2));color:var(--white);border:none;padding:10px 22px;border-radius:var(--radius-xs);cursor:pointer;font-weight:600;font-family:var(--sans);font-size:0.85em;transition:all 0.3s;box-shadow:0 3px 10px rgba(30,60,114,0.2);}
-        .calendar-header button:hover{transform:translateY(-1px);box-shadow:0 5px 15px rgba(30,60,114,0.3);}
-        .calendar-header h3{font-family:var(--serif);color:var(--blue1);font-size:1.4em;font-weight:700;}
-        .day-label{text-align:center;font-weight:700;color:var(--blue1);padding:10px;font-size:0.75em;text-transform:uppercase;letter-spacing:1.5px;}
-        .day-cell{background:linear-gradient(145deg,var(--offwhite),var(--gray1));border-radius:var(--radius-sm);padding:12px 8px 24px 8px;min-height:75px;cursor:pointer;transition:all 0.3s cubic-bezier(0.22,1,0.36,1);position:relative;border:1px solid transparent;}
-        .day-cell.weekend-day{background:linear-gradient(145deg,#e8f4fc,#d6eaf8);}
-        .day-cell:hover{transform:translateY(-3px) scale(1.03);box-shadow:var(--shadow-md);background:linear-gradient(135deg,var(--blue1),var(--blue2));color:var(--white);}
+        /* CALENDAR — PROFESSIONAL */
+        .calendar-wrap{background:linear-gradient(160deg,#0f1e3d 0%,#1a2f5a 100%);border-radius:16px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,0.25);}
+        .calendar-nav{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+        .calendar-nav button{background:rgba(255,255,255,0.1);color:var(--white);border:1px solid rgba(255,255,255,0.2);padding:8px 18px;border-radius:30px;cursor:pointer;font-weight:600;font-family:var(--sans);font-size:0.82em;transition:all 0.25s;backdrop-filter:blur(6px);}
+        .calendar-nav button:hover{background:rgba(255,255,255,0.22);transform:scale(1.04);}
+        .calendar-month-title{text-align:center;}
+        .calendar-month-title .cal-month{font-family:var(--serif);color:var(--white);font-size:1.5em;font-weight:800;letter-spacing:0.02em;line-height:1;}
+        .calendar-month-title .cal-year{font-size:0.78em;color:rgba(255,255,255,0.5);font-weight:400;letter-spacing:0.12em;text-transform:uppercase;}
+        .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
+        .calendar-header{display:none;}
+        .calendar-header button{display:none;}
+        .calendar-header h3{display:none;}
+        .day-label{text-align:center;font-weight:700;color:rgba(255,255,255,0.45);padding:6px 2px 10px;font-size:0.68em;text-transform:uppercase;letter-spacing:0.1em;}
+        .day-label.weekend-lbl{color:rgba(120,180,255,0.6);}
+        .day-cell{background:rgba(255,255,255,0.06);border-radius:10px;padding:8px 4px 22px;min-height:64px;cursor:pointer;transition:all 0.2s;position:relative;border:1px solid rgba(255,255,255,0.07);}
+        .day-cell.weekend-day{background:rgba(100,160,255,0.08);border-color:rgba(100,160,255,0.12);}
+        .day-cell:hover{background:rgba(255,255,255,0.16);border-color:rgba(255,255,255,0.3);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,0.3);}
         .day-cell:hover .day-number{color:var(--white)!important;}
-        .day-cell.other-month{opacity:0.25;}
-        .day-cell.today{background:linear-gradient(135deg,var(--blue2),var(--blue1));color:var(--white);font-weight:bold;box-shadow:0 6px 20px rgba(30,60,114,0.35);border:2px solid rgba(255,255,255,0.3);}
-        .day-cell.today .day-number{color:var(--white)!important;font-weight:800;}
-        .day-cell.has-notes{background:linear-gradient(135deg,var(--blue3),var(--blue2));color:var(--white);}
-        .day-cell.has-notes .day-number{color:var(--white)!important;}
-        .day-cell.holiday{background:linear-gradient(135deg,var(--purple1),var(--purple2));color:var(--white);font-weight:bold;box-shadow:0 4px 15px rgba(142,68,173,0.3);}
-        .day-cell.holiday .day-number{color:var(--white)!important;}
-        .day-cell.birthday{background:linear-gradient(135deg,var(--orange1),var(--orange2));color:var(--white);font-weight:bold;animation:subtleGlow 3s ease-in-out infinite;box-shadow:0 4px 15px rgba(243,156,18,0.3);}
-        .day-cell.birthday .day-number{color:var(--white)!important;}
+        .day-cell.other-month{opacity:0.18;pointer-events:none;}
+        .day-cell.today{background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:2px solid rgba(147,197,253,0.5);box-shadow:0 0 0 3px rgba(59,130,246,0.25),0 6px 20px rgba(29,78,216,0.4);}
+        .day-cell.today .day-number{color:#fff!important;font-weight:800;}
+        .day-cell.has-notes{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);}
+        .day-cell.has-notes .day-number{color:#7dd3fc!important;}
+        .day-cell.holiday{background:linear-gradient(135deg,rgba(139,92,246,0.35),rgba(109,40,217,0.35));border-color:rgba(167,139,250,0.4);box-shadow:0 4px 12px rgba(109,40,217,0.25);}
+        .day-cell.holiday .day-number{color:#c4b5fd!important;}
+        .day-cell.birthday{background:linear-gradient(135deg,rgba(251,146,60,0.35),rgba(245,158,11,0.35));border-color:rgba(252,211,77,0.4);animation:subtleGlow 3s ease-in-out infinite;}
+        .day-cell.birthday .day-number{color:#fcd34d!important;}
         @keyframes subtleGlow{0%,100%{box-shadow:0 4px 15px rgba(243,156,18,0.3);}50%{box-shadow:0 6px 25px rgba(243,156,18,0.5);}}
         .day-number{font-weight:700;margin-bottom:4px;color:var(--gray5);font-size:0.95em;font-family:var(--mono);}
         .day-cell.weekend-day .day-number{color:#0e7490;}
-        .holiday-badge{position:absolute;bottom:4px;left:3px;right:3px;background:rgba(255,255,255,0.92);color:var(--purple1);border-radius:var(--radius-xs);padding:3px 5px;font-size:0.62em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;backdrop-filter:blur(4px);}
-        .birthday-badge{position:absolute;bottom:4px;left:3px;right:3px;background:rgba(255,255,255,0.92);color:var(--orange1);border-radius:var(--radius-xs);padding:3px 5px;font-size:0.62em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
-        .notes-badge{position:absolute;top:5px;right:5px;background:var(--red3);color:var(--white);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;font-family:var(--mono);box-shadow:0 2px 6px rgba(245,87,108,0.4);}
+        .holiday-badge{position:absolute;bottom:3px;left:3px;right:3px;background:rgba(167,139,250,0.3);color:#e9d5ff;border-radius:5px;padding:2px 4px;font-size:0.6em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+        .birthday-badge{position:absolute;bottom:3px;left:3px;right:3px;background:rgba(252,211,77,0.2);color:#fcd34d;border-radius:5px;padding:2px 4px;font-size:0.6em;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;}
+        .notes-badge{position:absolute;top:4px;right:4px;background:linear-gradient(135deg,#3b82f6,#06b6d4);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:0.7em;font-weight:800;font-family:var(--mono);box-shadow:0 2px 8px rgba(59,130,246,0.5);}
 
         /* NOTES */
         .notes-section{grid-column:1/-1;}
@@ -214,7 +221,7 @@
         .note-date{font-size:0.82em;opacity:0.85;display:flex;align-items:center;gap:5px;margin-top:10px;}
 
         /* NOTE CARD EXTRAORDINARY REDESIGN */
-        .note-card-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;}
+        .note-card-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;padding-top:44px;}
         .note-metric-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5em;background:rgba(255,255,255,0.2);backdrop-filter:blur(6px);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
         .note-header-text{flex:1;min-width:0;}
         .note-metric-label{font-size:0.68em;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.7;margin-bottom:2px;}
@@ -419,9 +426,7 @@
             .card:hover{transform:none;box-shadow:var(--shadow-lg);}
 
             /* Calendario */
-            .calendar-header{margin-bottom:12px;}
-            .calendar-header h3{font-size:1em;font-weight:700;}
-            .calendar-header button{padding:9px 13px;font-size:0.78em;border-radius:8px;}
+
             .calendar-grid{gap:3px;margin-top:10px;}
             .day-label{padding:6px 2px;font-size:0.6em;letter-spacing:0.6px;}
             .day-cell{padding:5px 2px 14px;min-height:48px;border-radius:8px;cursor:pointer;}
@@ -491,8 +496,7 @@
             .header h1{font-size:1em;}
             .day-cell{min-height:40px;padding:4px 1px 12px;}
             .day-number{font-size:0.75em;}
-            .calendar-header h3{font-size:0.88em;}
-            .calendar-header button{padding:7px 10px;font-size:0.72em;}
+
             .card{padding:15px 13px;}
         }
     </style>
@@ -556,14 +560,18 @@
                 <button class="btn btn-green" id="saveNoteBtn" style="display:none;" onclick="saveChanges()">&#128190; Guardar Cambios</button>
             </div>
 
-            <div class="card calendar-section">
-                <h2><span class="icon-3d">&#128198;</span> Calendario</h2>
-                <div class="calendar-header">
-                    <button onclick="previousMonth()">&#9664; Anterior</button>
-                    <h3 id="currentMonth"></h3>
-                    <button onclick="nextMonth()">Siguiente &#9654;</button>
+            <div class="card calendar-section" style="padding:0;overflow:hidden;">
+                <div class="calendar-wrap">
+                    <div class="calendar-nav">
+                        <button onclick="previousMonth()">&#9664; Anterior</button>
+                        <div class="calendar-month-title">
+                            <div class="cal-month" id="currentMonthName"></div>
+                            <div class="cal-year" id="currentMonthYear"></div>
+                        </div>
+                        <button onclick="nextMonth()">Siguiente &#9654;</button>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid"></div>
                 </div>
-                <div class="calendar-grid" id="calendarGrid"></div>
             </div>
         </div>
         <div class="card notes-section">
@@ -1717,11 +1725,12 @@ function getPeopleHTML(peopleIds,small){
 // ======= CALENDAR =======
 function renderCalendar(){
     const year=currentDate.getFullYear(),month=currentDate.getMonth();
-    document.getElementById('currentMonth').textContent=`${monthNames[month]} ${year}`;
+    document.getElementById('currentMonthName').textContent=monthNames[month];
+    document.getElementById('currentMonthYear').textContent=year;
     const firstDay=new Date(year,month,1),lastDay=new Date(year,month+1,0),prevLastDay=new Date(year,month,0);
     const firstDayIndex=(firstDay.getDay()===0)?6:firstDay.getDay()-1;
     const lastDayDate=lastDay.getDate();
-    let html='';dayNames.forEach(d=>{html+=`<div class="day-label">${d}</div>`;});
+    let html='';dayNames.forEach((d,i)=>{const wl=(i>=5)?'weekend-lbl':'';html+=`<div class="day-label ${wl}">${d}</div>`;});
     const pld=prevLastDay.getDate();
     for(let i=firstDayIndex;i>0;i--) html+=`<div class="day-cell other-month"><div class="day-number">${pld-i+1}</div></div>`;
     const today=new Date();
@@ -1773,8 +1782,8 @@ function _getWorstBmiClass(note){
 function renderNoteCard(n){
     const bmiClass=_getWorstBmiClass(n);
     const cardClass=(bmiClass&&!n.isRecurring)?bmiClass:`priority-${n.priority}`;
-    const metricIcons={peso:'\u2696\ufe0f',presion:'\ud83e\ude7a',glucosa:'\ud83e\uddea',entrenamiento:'\ud83c\udfc3',outro:'\ud83d\udcdd'};
-    const metricUnits={peso:'kg',presion:'mmHg',glucosa:'mg/dL',entrenamiento:'',outro:''};
+    const metricIcons={peso:'\u2696\ufe0f',presion:'\ud83e\ude7a',glucosa:'\ud83e\uddea',entrenamiento:'\ud83c\udfc3',otro:'\ud83d\udcdd'};
+    const metricUnits={peso:'kg',presion:'mmHg',glucosa:'mg/dL',entrenamiento:'',otro:''};
     const mt=n.metricType||'peso';
     const icon=n.isRecurring?'\ud83c\udf82':(metricIcons[mt]||'\ud83d\udcdd');
     const unit=metricUnits[mt]||'';
