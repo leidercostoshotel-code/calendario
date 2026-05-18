@@ -651,69 +651,72 @@ async function cloudSave() {
     if (!SHEET_URL) { setSyncStatus('local'); return; }
     setSyncStatus('syncing');
     pendingSaves++;
+    const saveTs = Date.now();
     try {
-        // For large data, split into chunks if needed
-        const notesStr = encodeURIComponent(JSON.stringify(notes));
-        const contactsStr = encodeURIComponent(JSON.stringify(contacts));
-        const url = SHEET_URL + '?action=saveAll&notes=' + notesStr + '&contacts=' + contactsStr;
+        const payload = JSON.stringify({ action:'saveAll', notes, contacts });
 
-        // If URL too long (>8000), use a form POST approach
-        if (url.length > 8000) {
-            await cloudSaveViaForm();
-            return;
+        // 1. fetch POST (soporta payloads grandes sin límite de URL)
+        try {
+            const resp = await fetch(SHEET_URL, {
+                method:'POST',
+                headers:{'Content-Type':'text/plain'},
+                body: payload
+            });
+            const text = await resp.text();
+            const jsonStr = text.replace(/^[^(]+\(/,'').replace(/\);?\s*$/,'');
+            const d = JSON.parse(jsonStr);
+            if (d.success) {
+                lastSync = new Date();
+                localStorage.setItem('lastCloudSync', saveTs);
+                setSyncStatus('synced','Guardado '+lastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}));
+                return;
+            }
+        } catch(_) {}
+
+        // 2. JSONP GET (fallback si fetch falla por CORS)
+        const url = SHEET_URL+'?action=saveAll&notes='+encodeURIComponent(JSON.stringify(notes))+'&contacts='+encodeURIComponent(JSON.stringify(contacts));
+        if (url.length <= 8000) {
+            const d = await jsonpRequest(url);
+            if (d.success) {
+                lastSync = new Date();
+                localStorage.setItem('lastCloudSync', saveTs);
+                setSyncStatus('synced','Guardado '+lastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}));
+                return;
+            }
         }
 
-        const d = await jsonpRequest(url);
-        if (d.success) {
-            lastSync = new Date();
-            setSyncStatus('synced', 'Sync ' + lastSync.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}));
-        } else {
-            console.error('[cloudSave] Apps Script respondi\u00f3 error:', d);
-            setSyncStatus('error', d.error || 'Error al guardar');
-        }
+        // 3. Último fallback: iframe form POST
+        await cloudSaveViaForm();
+
     } catch(e) {
-        console.error('[cloudSave] Fallo de red/JSONP:', e);
-        setSyncStatus('error', 'Sin conexi\u00f3n al guardar');
+        console.error('[cloudSave]', e);
+        setSyncStatus('error','Sin conexión — guardado solo local');
     } finally {
         pendingSaves = Math.max(0, pendingSaves - 1);
     }
 }
 
-// Fallback for large payloads — POST via hidden form + iframe
 function cloudSaveViaForm() {
     return new Promise((resolve) => {
         const iframe = document.createElement('iframe');
-        iframe.name = 'syncFrame_' + Date.now();
-        iframe.style.display = 'none';
+        iframe.name = 'syncFrame_'+Date.now(); iframe.style.display='none';
         document.body.appendChild(iframe);
-
         const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = SHEET_URL;
-        form.target = iframe.name;
-
-        const addField = (name, value) => {
-            const input = document.createElement('input');
-            input.type = 'hidden'; input.name = name; input.value = value;
-            form.appendChild(input);
-        };
-        addField('action', 'saveAll');
-        addField('notes', JSON.stringify(notes));
-        addField('contacts', JSON.stringify(contacts));
-
-        document.body.appendChild(form);
-        form.submit();
-
-        // Can't read iframe response cross-origin, assume success after delay
-        setTimeout(() => {
-            document.body.removeChild(form);
-            document.body.removeChild(iframe);
-            lastSync = new Date();
-            setSyncStatus('synced', 'Sync ' + lastSync.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'}));
+        form.method='POST'; form.action=SHEET_URL; form.target=iframe.name;
+        const addField=(n,v)=>{const i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i);};
+        addField('action','saveAll');
+        addField('notes',JSON.stringify(notes));
+        addField('contacts',JSON.stringify(contacts));
+        document.body.appendChild(form); form.submit();
+        setTimeout(()=>{
+            try{document.body.removeChild(form);document.body.removeChild(iframe);}catch(_){}
+            lastSync=new Date();
+            setSyncStatus('synced','Guardado '+lastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}));
             resolve();
-        }, 3000);
+        },4000);
     });
 }
+
 
 function parsePeopleField(raw){
     if(!raw && raw !== 0) return [];
@@ -1639,13 +1642,14 @@ async function manualSync() {
     }
 }
 
-// Auto-load from cloud on startup, then auto-sync every 15 segundos
+// Auto-load al iniciar, luego solo SUBE datos \u2014 nunca baja autom\u00e1ticamente
+// (evita sobreescribir notas reci\u00e9n agregadas antes de que lleguen al cloud)
 (async function initCloud() {
     if (!SHEET_URL) {
         setSyncStatus('local');
         return;
     }
-    // Carga inicial desde el cloud
+    // Carga inicial \u00fanica desde el cloud
     const loaded = await cloudLoad();
     if (loaded) {
         jumpToLatestMonth();
@@ -1654,18 +1658,14 @@ async function manualSync() {
         renderContacts();
         updateTicker();
     }
-    // Sincroniza cada 15 segundos para ver cambios de otros usuarios casi en tiempo real
+    // Cada 30s solo verifica si hay cambios PENDIENTES de subir (no baja datos)
+    // Para bajar datos del cloud usa el bot\u00f3n "Sincronizar"
     syncInterval = setInterval(async () => {
-        // Si hay guardados en vuelo, no cargues del cloud: los perder\u00edas.
-        if (pendingSaves > 0) return;
-        const ok = await cloudLoad();
-        if (ok) {
-            renderCalendar();
-            renderNotes();
-            renderContacts();
-            updateTicker();
+        if (pendingSaves > 0) {
+            // Hay un guardado en cola \u2014 reintenta subir
+            await cloudSave();
         }
-    }, 15000);
+    }, 30000);
 })();
 
 // ======= SERVICE WORKER (PWA) =======
