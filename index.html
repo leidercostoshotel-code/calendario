@@ -482,8 +482,14 @@
                 <div class="input-group"><label>&#128221; T&iacute;tulo del Registro</label><input type="text" id="noteTitle" placeholder="Registro de peso"></div>
                 <div class="input-group"><label>&#128196; Observaciones</label><textarea id="noteDesc" placeholder="Describe observaciones del peso"></textarea></div>
                 <div class="input-group"><label>&#128197; Fecha</label><input type="date" id="noteDate"></div>
-                <div class="input-group"><label>&#9889; Peso</label>
-                    <select id="noteWeight"><option value="baja">⚖️ Bajo</option><option value="media">⚖️ Medio</option><option value="alta">⚖️ Alto</option></select>
+                <div class="input-group" id="weightPriorityGroup">
+                    <label id="weightPriorityLabel">⚡ Nivel de Alerta</label>
+                    <select id="noteWeight">
+                        <option value="baja">🟢 Normal / Saludable</option>
+                        <option value="media">🟡 Atención / Moderado</option>
+                        <option value="alta">🔴 Urgente / Alto Riesgo</option>
+                    </select>
+                    <div id="weightAutoInfo" style="display:none;margin-top:6px;padding:6px 10px;background:var(--blue-light);border-radius:6px;font-size:0.76em;color:var(--blue1);font-weight:600;"></div>
                 </div>
                 <div class="input-group"><label>&#127874; Tipo de Evento</label>
                     <select id="noteType"><option value="tarea">&#128203; Tarea Normal</option><option value="cumplea&ntilde;os">&#127874; Cumplea&ntilde;os / Aniversario (Recurrente)</option></select>
@@ -836,16 +842,20 @@ personInput.addEventListener('keydown',function(e){
 });
 
 document.addEventListener('click',function(e){if(!e.target.closest('.autocomplete-wrap')) personDrop.classList.remove('show');});
+document.getElementById('noteTitle').addEventListener('input', updateAutoPriority);
+document.getElementById('noteMetricType').addEventListener('change', updateAutoPriority);
 
 function selectPerson(id){
     if(selectedPersonIds.includes(id)) return;
     selectedPersonIds.push(id);
     personInput.value='';personDrop.classList.remove('show');
     renderSelectedPersons();
+    updateAutoPriority();
 }
 function removePerson(id){
     selectedPersonIds=selectedPersonIds.filter(x=>x!==id);
     renderSelectedPersons();
+    updateAutoPriority();
 }
 function renderSelectedPersons(){
     const wrap=document.getElementById('selectedPersons');
@@ -863,14 +873,72 @@ function renderSelectedPersons(){
 
 // ======= CONTACTS CRUD =======
 
+function getAutoPriorityFromBmi(bmi){
+    if(bmi<17.0) return {priority:'alta',label:'🔴 Delgadez — Urgente'};
+    if(bmi<18.5) return {priority:'media',label:'🟡 Delgadez leve — Atención'};
+    if(bmi<25.0) return {priority:'baja',label:'🟢 Peso normal — Saludable'};
+    if(bmi<30.0) return {priority:'media',label:'🟡 Sobrepeso — Atención'};
+    if(bmi<35.0) return {priority:'alta',label:'🔴 Obesidad I — Urgente'};
+    return {priority:'alta',label:'🔴 Obesidad II/III — Urgente'};
+}
+
+function updateAutoPriority(){
+    const metricType=document.getElementById('noteMetricType').value;
+    const sel=document.getElementById('noteWeight');
+    const lbl=document.getElementById('weightPriorityLabel');
+    const info=document.getElementById('weightAutoInfo');
+    if(!sel||!lbl||!info) return;
+
+    if(metricType!=='peso'||!selectedPersonIds.length){
+        sel.disabled=false; sel.style.opacity='1'; sel.style.cursor='';
+        lbl.textContent='⚡ Nivel de Alerta';
+        info.style.display='none';
+        return;
+    }
+
+    // Obtener peso del título si es numérico
+    const titleVal=document.getElementById('noteTitle').value;
+    const noteKg=Number(String(titleVal).trim().replace(',','.'));
+    const validNoteKg=Number.isFinite(noteKg)&&noteKg>=20&&noteKg<=400?noteKg:null;
+
+    let highestIdx=0;
+    const order=['baja','media','alta'];
+    let infoLines=[];
+
+    selectedPersonIds.forEach(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height) return;
+        const w=validNoteKg||(c.weightHistory&&c.weightHistory.length?c.weightHistory[c.weightHistory.length-1].weight:null);
+        if(!w) return;
+        const bmi=w/(c.height*c.height);
+        const result=getAutoPriorityFromBmi(bmi);
+        const idx=order.indexOf(result.priority);
+        if(idx>highestIdx) highestIdx=idx;
+        infoLines.push(`${c.name}: IMC ${bmi.toFixed(1)} — ${result.label}`);
+    });
+
+    if(infoLines.length){
+        sel.value=order[highestIdx];
+        sel.disabled=true; sel.style.opacity='0.75'; sel.style.cursor='not-allowed';
+        lbl.textContent='⚡ Nivel de Alerta (auto)';
+        info.innerHTML='🤖 Calculado automáticamente:<br>'+infoLines.join('<br>');
+        info.style.display='block';
+    } else {
+        sel.disabled=false; sel.style.opacity='1'; sel.style.cursor='';
+        lbl.textContent='⚡ Nivel de Alerta';
+        info.style.display='none';
+    }
+}
+
 function updateTitlePlaceholder(){
     const metric=document.getElementById('noteMetricType').value;
     const title=document.getElementById('noteTitle');
     const desc=document.getElementById('noteDesc');
-    const placeholders={peso:'Registro de peso',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
-    const descPlaceholders={peso:'Describe observaciones del peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
+    const placeholders={peso:'Ej: 79.4',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
+    const descPlaceholders={peso:'Observaciones del registro de peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
     title.placeholder=placeholders[metric]||'Título del registro';
     desc.placeholder=descPlaceholders[metric]||'Describe observaciones importantes';
+    updateAutoPriority();
 }
 
 function getSmartHealthSummary(peopleIds, note){
@@ -1458,7 +1526,10 @@ function saveChanges(){
 function resetNoteForm(){
     ['noteTitle','noteDesc'].forEach(x=>document.getElementById(x).value='');
     const _rd=new Date();document.getElementById('noteDate').value=_rd.getFullYear()+'-'+String(_rd.getMonth()+1).padStart(2,'0')+'-'+String(_rd.getDate()).padStart(2,'0');
-    document.getElementById('noteWeight').value='baja';document.getElementById('noteType').value='tarea';document.getElementById('noteMetricType').value='peso';updateTitlePlaceholder();
+    const nw=document.getElementById('noteWeight');nw.value='baja';nw.disabled=false;nw.style.opacity='1';nw.style.cursor='';
+    document.getElementById('weightAutoInfo').style.display='none';
+    document.getElementById('weightPriorityLabel').textContent='⚡ Nivel de Alerta';
+    document.getElementById('noteType').value='tarea';document.getElementById('noteMetricType').value='peso';updateTitlePlaceholder();
     document.getElementById('addNoteBtn').style.display='block';document.getElementById('saveNoteBtn').style.display='none';
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
 }
