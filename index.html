@@ -1018,7 +1018,7 @@ function getSmartHealthSummary(peopleIds, note){
         if(!hasHistory&&!validNoteWeight) return '';
         const hist=c.weightHistory||[];
         const latestEntry=hist.length?hist[hist.length-1]:null;
-        const weightUsed=latestEntry?latestEntry.weight:validNoteWeight;
+        const weightUsed=validNoteWeight||(latestEntry?latestEntry.weight:null);
         const bmi=weightUsed/(c.height*c.height);
         const info=getBmiLevel(bmi);
         const col=getAvatarColor(c.name);
