@@ -212,6 +212,21 @@
         .note-card h3{margin-bottom:10px;font-size:1.15em;font-family:var(--serif);font-weight:700;}
         .note-card p{margin-bottom:10px;line-height:1.65;font-size:0.9em;opacity:0.92;}
         .note-date{font-size:0.82em;opacity:0.85;display:flex;align-items:center;gap:5px;margin-top:10px;}
+
+        /* NOTE CARD EXTRAORDINARY REDESIGN */
+        .note-card-header{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;}
+        .note-metric-icon{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.5em;background:rgba(255,255,255,0.2);backdrop-filter:blur(6px);flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.2);}
+        .note-header-text{flex:1;min-width:0;}
+        .note-metric-label{font-size:0.68em;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.7;margin-bottom:2px;}
+        .note-weight-display{font-size:2.4em;font-weight:800;font-family:var(--mono);line-height:1;letter-spacing:-1px;}
+        .note-weight-unit{font-size:0.45em;font-weight:600;opacity:0.8;letter-spacing:0.05em;vertical-align:super;}
+        .note-title-text{font-size:1.1em;font-weight:700;font-family:var(--serif);line-height:1.3;}
+        .note-desc-block{background:rgba(0,0,0,0.15);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:0.86em;line-height:1.6;border-left:3px solid rgba(255,255,255,0.3);}
+        .note-desc-block strong{opacity:0.7;font-size:0.85em;letter-spacing:0.08em;text-transform:uppercase;}
+        .note-meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+        .note-meta-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.72em;font-weight:600;background:rgba(255,255,255,0.18);backdrop-filter:blur(4px);}
+        .note-completed-banner{margin-top:12px;padding:8px 14px;background:rgba(255,255,255,0.2);border-radius:8px;font-weight:700;font-size:0.88em;text-align:center;letter-spacing:0.05em;}
+        .note-divider{height:1px;background:rgba(255,255,255,0.15);margin:12px 0;}
         .note-people{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;}
         .note-people-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 10px 3px 4px;border-radius:14px;font-size:0.72em;font-weight:600;background:rgba(255,255,255,0.2);}
         .note-people-tag .mini-avatar{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.6em;font-weight:700;background:rgba(255,255,255,0.3);}
@@ -1746,20 +1761,42 @@ function _getWorstBmiClass(note){
 function renderNoteCard(n){
     const bmiClass=_getWorstBmiClass(n);
     const cardClass=(bmiClass&&!n.isRecurring)?bmiClass:`priority-${n.priority}`;
+    const metricIcons={peso:'\u2696\ufe0f',presion:'\ud83e\ude7a',glucosa:'\ud83e\uddea',entrenamiento:'\ud83c\udfc3',outro:'\ud83d\udcdd'};
+    const metricUnits={peso:'kg',presion:'mmHg',glucosa:'mg/dL',entrenamiento:'',outro:''};
+    const mt=n.metricType||'peso';
+    const icon=n.isRecurring?'\ud83c\udf82':(metricIcons[mt]||'\ud83d\udcdd');
+    const unit=metricUnits[mt]||'';
+    const numVal=Number(String(n.title).trim().replace(',','.'));
+    const isNumeric=Number.isFinite(numVal)&&numVal>0&&!n.isRecurring&&unit;
+    const dateStr=n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'Fecha no definida';
+    const priorityLabels={baja:'\ud83d\udfe2 Normal',media:'\ud83d\udfe1 Atenci\u00f3n',alta:'\ud83d\udd34 Urgente'};
+    const priorityLabel=priorityLabels[n.priority]||'\u2014';
     return `<div class="note-card ${cardClass} ${n.completed?'completed':''} ${n.isRecurring?'birthday':''}">
         <div class="note-actions">
-            <button class="action-btn" onclick="editNote(${n.id})" title="Editar">&#9998;&#65039;</button>
-            ${!n.isRecurring?`<button class="action-btn" onclick="toggleComplete(${n.id})" title="${n.completed?'Reabrir':'Completar'}">${n.completed?'\u2611\ufe0f':'\u2705'}</button>`:''}
-            <button class="action-btn" onclick="deleteNote(${n.id})" title="Eliminar">&#128465;&#65039;</button>
+            <button class="action-btn" onclick="editNote(${n.id})" title="Editar">\u270f\ufe0f</button>
+            ${!n.isRecurring?`<button class="action-btn" onclick="toggleComplete(${n.id})" title="${n.completed?'Reabrir':'Completar'}">${n.completed?'\u2705':'\u2611\ufe0f'}</button>`:''}
+            <button class="action-btn" onclick="deleteNote(${n.id})" title="Eliminar">\ud83d\uddd1\ufe0f</button>
         </div>
-        <h3>${n.isRecurring?'\ud83c\udf82 ':''}${n.title}</h3>
-        <p><strong>Observaciones:</strong> ${n.desc}</p>
+        <div class="note-card-header">
+            <div class="note-metric-icon">${icon}</div>
+            <div class="note-header-text">
+                <div class="note-metric-label">${metricIcons[mt]?metricIcons[mt]+' ':''} ${(metricLabelMap[mt]||mt).toUpperCase()}${n.isRecurring?' \u00b7 ANUAL':''}</div>
+                ${isNumeric
+                    ?`<div class="note-weight-display">${numVal%1===0?numVal:numVal.toFixed(1)}<span class="note-weight-unit">${unit}</span></div>`
+                    :`<div class="note-title-text">${n.title}</div>`
+                }
+            </div>
+        </div>
         ${getPeopleHTML(n.people)}
-        <div class="note-date">📌 Tipo: ${metricLabelMap[n.metricType||'peso']}</div>
-        <div class="note-date">⚖️ Intensidad: ${n.priority==='alta'?'Alta':n.priority==='media'?'Media':'Baja'}</div>
+        ${n.desc?`<div class="note-desc-block"><strong>Observaciones</strong><br>${n.desc}</div>`:''}
         ${getSmartHealthSummary(n.people, n)}
-        <div class="note-date">\ud83d\udcc5 ${n.date?new Date(n.date+'T00:00:00').toLocaleDateString('es-ES',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'Fecha no definida'}${n.isRecurring?' (Recurrente Anual)':''}</div>
-        ${n.completed&&!n.isRecurring?'<div style="margin-top:10px;font-weight:bold;">\u2728 Completado</div>':''}
+        <div class="note-divider"></div>
+        <div class="note-meta-row">
+            <span class="note-meta-chip">\ud83d\udcc5 ${dateStr}</span>
+            <span class="note-meta-chip">${priorityLabel}</span>
+            ${n.completed&&!n.isRecurring?`<span class="note-meta-chip" style="background:rgba(255,255,255,0.35);">\u2728 Completado</span>`:''}
+            ${n.isRecurring?`<span class="note-meta-chip">\ud83d\udd01 Recurrente</span>`:''}
+        </div>
     </div>`;
 }
 
@@ -1928,19 +1965,7 @@ function showDayNotes(ds){
     if(h) mb+=`<div style="background:var(--purple-light);padding:16px;border-radius:var(--radius-sm);margin-bottom:18px;border:2px solid var(--purple1);text-align:center;"><h3 style="color:var(--purple1);margin:0;font-family:var(--serif);">\ud83c\udf89 FERIADO NACIONAL</h3><p style="font-size:1.05em;color:var(--gray4);margin-top:5px;">${h}</p></div>`;
     if(dn.length){
         const sd=dn.sort((a,b)=>{if(a.isRecurring!==b.isRecurring) return a.isRecurring?-1:1;if(a.completed!==b.completed) return a.completed?1:-1;return 0;});
-        sd.forEach(n=>{
-            const ir=n.isRecurring,st=ir?'Evento Anual':(n.completed?'Completado':'Pendiente'),sc=ir?'':(n.completed?'':'pending');
-            mb+=`<div class="modal-note-item priority-${n.priority} ${ir?'birthday':''} ${n.completed&&!ir?'completed':''}">
-                <h4>${ir?'\ud83c\udf82 ':''}${n.title}</h4><p><strong>Observaciones:</strong> ${n.desc}</p>
-                ${getPeopleHTML(n.people)}
-                <div class="modal-status ${sc}">${st}</div>
-                <div class="modal-actions">
-                    <button class="action-btn" onclick="closeModal();editNote(${n.id});" title="Editar">&#9998;</button>
-                    ${!ir?`<button class="action-btn" onclick="toggleComplete(${n.id});showDayNotes('${ds}');">${n.completed?'\u2611':'\u2713'}</button>`:''}
-                    <button class="action-btn" onclick="deleteNote(${n.id});showDayNotes('${ds}');">&#128465;</button>
-                </div>
-            </div>`;
-        });
+        mb+=`<div style="display:grid;gap:14px;">${sd.map(n=>renderNoteCard(n)).join('')}</div>`;
     }else if(h) mb+='<p style="text-align:center;color:var(--gray3);padding:20px;">Disfruta el feriado! \ud83c\udfd6\ufe0f</p>';
     document.getElementById('modalBody').innerHTML=mb;
     document.getElementById('noteModal').classList.add('open');
