@@ -1949,7 +1949,7 @@ function showDayNotes(ds){
 // INIT
 const _id=new Date();document.getElementById('noteDate').value=_id.getFullYear()+'-'+String(_id.getMonth()+1).padStart(2,'0')+'-'+String(_id.getDate()).padStart(2,'0');
 updateTitlePlaceholder();
-renderCalendar();updateTicker();checkTodayAlerts();
+renderCalendar();updateTicker();checkTodayAlerts();initStickerPicker();
 
 // ======= CLOUD SYNC INIT =======
 function jumpToLatestMonth(){
