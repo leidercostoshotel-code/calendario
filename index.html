@@ -233,6 +233,26 @@
             color:var(--white);font-weight:700;font-size:1em;flex-shrink:0;
             box-shadow:0 3px 10px rgba(0,0,0,0.15);
         }
+        .contact-avatar img,.tag-avatar img,.mini-avatar img,.ac-avatar img,.pg-avatar img,.bmi-mini-avatar img{
+            width:100%;height:100%;border-radius:50%;object-fit:cover;
+        }
+        .contact-avatar.has-photo,.tag-avatar.has-photo,.mini-avatar.has-photo,.ac-avatar.has-photo,.pg-avatar.has-photo,.bmi-mini-avatar.has-photo{
+            background:#333;overflow:hidden;padding:0;font-size:inherit;
+        }
+        .avatar-upload-btn{
+            display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;
+            border:2px dashed rgba(255,255,255,0.35);background:rgba(255,255,255,0.08);
+            color:var(--gray4);font-size:0.82em;cursor:pointer;transition:all 0.2s;margin-top:4px;
+        }
+        .avatar-upload-btn:hover{border-color:var(--blue2);color:var(--white);background:rgba(255,255,255,0.15);}
+        .sticker-picker{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+        .sticker-option{width:36px;height:36px;font-size:1.4em;border:none;border-radius:8px;
+            background:rgba(255,255,255,0.1);cursor:pointer;display:flex;align-items:center;
+            justify-content:center;transition:transform 0.15s;}
+        .sticker-option:hover{transform:scale(1.3);}
+        .avatar-section{border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:12px;margin-bottom:8px;background:rgba(255,255,255,0.04);}
+        .avatar-preview-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+        .avatar-preview-circle{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:700;color:var(--white);overflow:hidden;background:#444;flex-shrink:0;}
         .contact-info{flex:1;min-width:0;}
         .contact-name{font-weight:700;color:var(--gray5);font-size:0.95em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .contact-detail{font-size:0.78em;color:var(--gray3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -545,6 +565,19 @@
         <div class="contacts-grid">
             <div class="card">
                 <h2><span class="icon-3d">&#128100;</span> Nuevo Contacto</h2>
+                <div class="avatar-section">
+                    <label style="font-size:0.82em;color:var(--gray3);margin-bottom:6px;display:block;">📸 Foto o Sticker (opcional)</label>
+                    <div class="avatar-preview-row">
+                        <div class="avatar-preview-circle" id="avatarPreviewCircle" style="background:#555;">+</div>
+                        <div style="flex:1;">
+                            <label class="avatar-upload-btn" for="avatarFileInput">📷 Subir foto</label>
+                            <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)">
+                            <div style="font-size:0.75em;color:var(--gray3);margin:2px 0 4px;">o elige un sticker:</div>
+                            <div class="sticker-picker" id="stickerPicker"></div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="clearAvatar()" style="font-size:0.72em;color:var(--gray3);background:none;border:none;cursor:pointer;padding:0;">✕ Quitar foto/sticker</button>
+                </div>
                 <div class="input-group"><label>Nombre Completo</label><input type="text" id="contactName" placeholder="Nombre y apellido"></div>
                 <div class="input-group"><label>Tel&eacute;fono</label><input type="tel" id="contactPhone" placeholder="+51 999 999 999"></div>
                 <div class="input-group"><label>Email</label><input type="email" id="contactEmail" placeholder="correo@ejemplo.com"></div>
@@ -839,8 +872,11 @@ personInput.addEventListener('input',function(){
     if(!matches.length){personDrop.classList.remove('show');return;}
     personDrop.innerHTML=matches.slice(0,8).map((c,i)=>{
         const hl=c.name.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'),'<span class="ac-highlight">$1</span>');
+        const _acHasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+        const _acAvatarInner=_acHasPhoto?getAvatarHTML(c,'sm'):getInitials(c.name);
+        const _acAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':getAvatarColor(c.name);
         return `<div class="autocomplete-item" data-id="${c.id}" onclick="selectPerson(${c.id})">
-            <div class="ac-avatar" style="background:${getAvatarColor(c.name)}">${getInitials(c.name)}</div>
+            <div class="ac-avatar ${_acHasPhoto?'has-photo':''}" style="background:${_acAvatarBg}">${_acAvatarInner}</div>
             <div class="ac-info"><div class="ac-name">${hl}</div><div class="ac-detail">${c.category||''} ${c.phone?'· '+c.phone:''}</div></div>
         </div>`;
     }).join('');
@@ -990,8 +1026,11 @@ function getSmartHealthSummary(peopleIds, note){
             :(goal&&goal.kg===0?`<div style="font-size:0.7em;margin-top:3px;color:#80ffb0;">✅ En rango saludable OMS</div>`:'');
         const rateHtml=rate&&rate.kgPerWeek!==0
             ?`<span style="font-size:0.68em;opacity:0.75;margin-left:4px;">${rate.kgPerWeek>0?'↑':'↓'} ${Math.abs(rate.kgPerWeek)} kg/sem</span>`:'';
+        const _bmiHasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+        const _bmiAvatarInner=_bmiHasPhoto?getAvatarHTML(c,'sm'):getInitials(c.name);
+        const _bmiAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.25)':col;
         return `<div class="bmi-person-row">
-            <div class="bmi-mini-avatar" style="background:${col}">${getInitials(c.name)}</div>
+            <div class="bmi-mini-avatar ${_bmiHasPhoto?'has-photo':''}" style="background:${_bmiAvatarBg}">${_bmiAvatarInner}</div>
             <div class="bmi-info">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
                     <div class="bmi-name">${c.name}</div>
@@ -1014,6 +1053,77 @@ function getSmartHealthSummary(peopleIds, note){
     </div>`;
 }
 
+// Avatar helpers
+const STICKER_OPTIONS=['😊','💪','🏋️','🧘','🏃','⚽','🎯','🌟','👑','🔥','❤️','🌺','🦁','🐯','🦊','🎀'];
+let pendingAvatarData=null;
+
+function initStickerPicker(){
+    const p=document.getElementById('stickerPicker');
+    if(!p) return;
+    p.innerHTML=STICKER_OPTIONS.map(e=>`<button type="button" class="sticker-option" onclick="selectSticker('${e}')">${e}</button>`).join('');
+}
+
+function selectSticker(emoji){
+    pendingAvatarData=emoji;
+    updateAvatarPreview(emoji, null);
+}
+
+function handleAvatarUpload(e){
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+        const img=new Image();
+        img.onload=function(){
+            const canvas=document.createElement('canvas');
+            const SIZE=80;
+            canvas.width=SIZE;canvas.height=SIZE;
+            const ctx=canvas.getContext('2d');
+            const ratio=Math.max(SIZE/img.width, SIZE/img.height);
+            const w=img.width*ratio, h=img.height*ratio;
+            ctx.drawImage(img,(SIZE-w)/2,(SIZE-h)/2,w,h);
+            const b64=canvas.toDataURL('image/jpeg',0.6);
+            pendingAvatarData=b64;
+            updateAvatarPreview(null, b64);
+        };
+        img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function updateAvatarPreview(emoji, b64){
+    const circle=document.getElementById('avatarPreviewCircle');
+    if(!circle) return;
+    if(b64){
+        circle.innerHTML=`<img src="${b64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+        circle.style.background='#222';
+    } else if(emoji){
+        circle.textContent=emoji;
+        circle.style.background='rgba(255,255,255,0.1)';
+    } else {
+        const nameVal=document.getElementById('contactName').value.trim();
+        const col=nameVal?getAvatarColor(nameVal):'#555';
+        circle.textContent=nameVal?getInitials(nameVal):'+';
+        circle.style.background=col;
+    }
+}
+
+function clearAvatar(){
+    pendingAvatarData=null;
+    document.getElementById('avatarFileInput').value='';
+    updateAvatarPreview(null,null);
+}
+
+function getAvatarHTML(c, size){
+    if(!c) return '';
+    if(c.avatar && c.avatar.startsWith('data:')){
+        return `<img src="${c.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else if(c.avatar && c.avatar.length<=8){
+        return c.avatar;
+    }
+    return getInitials(c.name);
+}
+
 function addContact(){
     const name=document.getElementById('contactName').value.trim();
     const phone=document.getElementById('contactPhone').value.trim();
@@ -1023,7 +1133,9 @@ function addContact(){
     const height=heightRaw?Number(String(heightRaw).replace(',', '.')):null;
     if(!name){alert('Por favor ingresa un nombre');return;}
     if(height!==null&&(height<0.8||height>2.5)){alert('Ingresa una talla válida en metros (0.80 a 2.50).');return;}
-    contacts.push({id:Date.now(),name,phone,email,category,height,weightHistory:[]});
+    const newAvatar=pendingAvatarData||null;
+    contacts.push({id:Date.now(),name,phone,email,category,height,weightHistory:[],avatar:newAvatar});
+    pendingAvatarData=null;
     saveContacts();resetContactForm();renderContacts();
 }
 function editContact(id){
@@ -1036,6 +1148,11 @@ function editContact(id){
     document.getElementById('addContactBtn').style.display='none';
     document.getElementById('saveContactBtn').style.display='block';
     editingContactId=id;
+    pendingAvatarData = c.avatar || null;
+    updateAvatarPreview(
+        c.avatar && !c.avatar.startsWith('data:') ? c.avatar : null,
+        c.avatar && c.avatar.startsWith('data:') ? c.avatar : null
+    );
     document.getElementById('contactName').focus();
 }
 function saveContactChanges(){
@@ -1054,6 +1171,7 @@ function saveContactChanges(){
     } else if(!contacts[i].height&&newHeight){
         contacts[i].height=newHeight;
     }
+    contacts[i].avatar = pendingAvatarData;
     saveContacts();resetContactForm();renderContacts();
 }
 function deleteContact(id){
@@ -1066,6 +1184,9 @@ function resetContactForm(){
     document.getElementById('addContactBtn').style.display='block';
     document.getElementById('saveContactBtn').style.display='none';
     editingContactId=null;
+    pendingAvatarData=null;
+    document.getElementById('avatarFileInput').value='';
+    updateAvatarPreview(null,null);
 }
 function renderContacts(){
     const q=document.getElementById('contactSearchBar').value.trim().toLowerCase();
@@ -1101,8 +1222,11 @@ function renderContacts(){
                 <div class="contact-bmi-tips"><strong>Recomendación OMS:</strong> ${health.recommendation}</div>
             </div>`
             :`<div class="contact-detail" style="color:var(--gray3);font-style:italic;margin-top:4px;">Registra talla y peso para ver estado OMS personalizado.</div>`;
+        const hasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+        const avatarInner=hasPhoto?getAvatarHTML(c,'md'):getInitials(c.name);
+        const avatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.08)':col;
         return `<div class="contact-card">
-            <div class="contact-avatar" style="background:${col}">${getInitials(c.name)}</div>
+            <div class="contact-avatar ${hasPhoto?'has-photo':''}" style="background:${avatarBg}">${avatarInner}</div>
             <div class="contact-info">
                 <div class="contact-name">${hl}</div>
                 <div class="contact-detail">${c.phone||'Sin teléfono'}${c.email?' · '+c.email:''}</div>
@@ -1556,7 +1680,10 @@ function getPeopleHTML(peopleIds,small){
     return '<div class="note-people">'+peopleIds.map(pid=>{
         const c=contacts.find(x=>x.id===pid);if(!c) return '';
         const col=getAvatarColor(c.name);
-        return `<span class="note-people-tag"><span class="mini-avatar" style="background:${col}">${getInitials(c.name)}</span>${c.name}</span>`;
+        const hasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+        const avatarInner=hasPhoto?getAvatarHTML(c,'sm'):getInitials(c.name);
+        const avatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':col;
+        return `<span class="note-people-tag"><span class="mini-avatar ${hasPhoto?'has-photo':''}" style="background:${avatarBg}">${avatarInner}</span>${c.name}</span>`;
     }).join('')+'</div>';
 }
 
@@ -1693,10 +1820,13 @@ function renderNotes(){
             const c=contacts.find(x=>x.id===pid);
             if(!c) return;
             const col=getAvatarColor(c.name);
+            const _pgHasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+            const _pgAvatarInner=_pgHasPhoto?getAvatarHTML(c,'md'):getInitials(c.name);
+            const _pgAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':col;
             const groupNotes=[...personGroups[pid]].sort(sortFn);
             html+=`<div class="person-group">
                 <div class="person-group-header">
-                    <div class="pg-avatar" style="background:${col}">${getInitials(c.name)}</div>
+                    <div class="pg-avatar ${_pgHasPhoto?'has-photo':''}" style="background:${_pgAvatarBg}">${_pgAvatarInner}</div>
                     <div class="pg-name">${c.name}</div>
                     <div class="pg-count">${groupNotes.length} nota${groupNotes.length!==1?'s':''}</div>
                 </div>
@@ -1770,10 +1900,13 @@ function showAllNotes(){
         personIds.forEach(pid=>{
             const c=contacts.find(x=>x.id===pid);if(!c) return;
             const col=getAvatarColor(c.name);
+            const _pgHasPhoto2=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
+            const _pgAvatarInner2=_pgHasPhoto2?getAvatarHTML(c,'md'):getInitials(c.name);
+            const _pgAvatarBg2=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':col;
             const gn=personGroups[pid];
             html+=`<div class="person-group">
                 <div class="person-group-header">
-                    <div class="pg-avatar" style="background:${col}">${getInitials(c.name)}</div>
+                    <div class="pg-avatar ${_pgHasPhoto2?'has-photo':''}" style="background:${_pgAvatarBg2}">${_pgAvatarInner2}</div>
                     <div class="pg-name">${c.name}</div>
                     <div class="pg-count">${gn.length} nota${gn.length!==1?'s':''}</div>
                 </div>
