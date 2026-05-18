@@ -1041,6 +1041,14 @@ function getSmartHealthSummary(peopleIds, note){
             :(goal&&goal.kg===0?`<div style="font-size:0.7em;margin-top:3px;color:#80ffb0;">✅ En rango saludable OMS</div>`:'');
         const rateHtml=rate&&rate.kgPerWeek!==0
             ?`<span style="font-size:0.68em;opacity:0.75;margin-left:4px;">${rate.kgPerWeek>0?'↑':'↓'} ${Math.abs(rate.kgPerWeek)} kg/sem</span>`:'';
+        const waterMl=Math.round(weightUsed*35);
+        const waterL=(waterMl/1000).toFixed(1);
+        const glasses250=Math.round(waterMl/250);
+        const glasses=Math.round(waterMl/200);
+        const waterHtml=`<div style="margin-top:5px;padding:5px 8px;background:rgba(100,200,255,0.18);border-radius:7px;font-size:0.72em;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:1.3em;">💧</span>
+            <span><strong>${waterL} L/día</strong> · ${glasses250} vasos de 250 ml ó ${glasses} vasos de 200 ml</span>
+        </div>`;
         const _bmiHasPhoto=c.avatar&&(c.avatar.startsWith('data:')||c.avatar.length<=8);
         const _bmiAvatarInner=_bmiHasPhoto?getAvatarHTML(c,'sm'):getInitials(c.name);
         const _bmiAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.25)':col;
@@ -1057,6 +1065,7 @@ function getSmartHealthSummary(peopleIds, note){
                     ${trend}${rateHtml}
                 </div>
                 ${goalHtml}
+                ${waterHtml}
                 <div class="bmi-tips">${tipsHtml}</div>
             </div>
         </div>`;
@@ -1234,6 +1243,9 @@ function renderContacts(){
                     🎯 <strong>Meta:</strong> ${health.goal.direction==='perder'?'Bajar':'Subir'} <strong>${health.goal.kg} kg</strong> para llegar al rango ideal (${health.goal.range.min}–${health.goal.range.max} kg)
                     ${health.eta?`· <strong>~${health.eta.weeks} sem</strong> (${health.eta.eta})`:''}</div>`
                 :`<div style="margin:4px 0;padding:4px 8px;background:rgba(39,174,96,0.15);border-radius:5px;font-size:0.75em;color:#1a7a3d;">✅ Peso en rango saludable OMS</div>`}
+                <div style="margin:5px 0;padding:5px 8px;background:rgba(100,200,255,0.15);border-radius:7px;font-size:0.75em;display:flex;align-items:center;gap:6px;">
+                    <span>💧</span><span><strong>${(Math.round(health.weight*35)/1000).toFixed(1)} L/día</strong> · ${Math.round(health.weight*35/250)} vasos de 250 ml ó ${Math.round(health.weight*35/200)} vasos de 200 ml</span>
+                </div>
                 <div class="contact-bmi-tips"><strong>Recomendación OMS:</strong> ${health.recommendation}</div>
             </div>`
             :`<div class="contact-detail" style="color:var(--gray3);font-style:italic;margin-top:4px;">Registra talla y peso para ver estado OMS personalizado.</div>`;
