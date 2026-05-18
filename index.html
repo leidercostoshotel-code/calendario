@@ -653,27 +653,7 @@ async function cloudSave() {
     pendingSaves++;
     const saveTs = Date.now();
     try {
-        const payload = JSON.stringify({ action:'saveAll', notes, contacts });
-
-        // 1. fetch POST (soporta payloads grandes sin límite de URL)
-        try {
-            const resp = await fetch(SHEET_URL, {
-                method:'POST',
-                headers:{'Content-Type':'text/plain'},
-                body: payload
-            });
-            const text = await resp.text();
-            const jsonStr = text.replace(/^[^(]+\(/,'').replace(/\);?\s*$/,'');
-            const d = JSON.parse(jsonStr);
-            if (d.success) {
-                lastSync = new Date();
-                localStorage.setItem('lastCloudSync', saveTs);
-                setSyncStatus('synced','Guardado '+lastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}));
-                return;
-            }
-        } catch(_) {}
-
-        // 2. JSONP GET (fallback si fetch falla por CORS)
+        // JSONP GET (funciona sin CORS)
         const url = SHEET_URL+'?action=saveAll&notes='+encodeURIComponent(JSON.stringify(notes))+'&contacts='+encodeURIComponent(JSON.stringify(contacts));
         if (url.length <= 8000) {
             const d = await jsonpRequest(url);
@@ -684,10 +664,8 @@ async function cloudSave() {
                 return;
             }
         }
-
-        // 3. Último fallback: iframe form POST
+        // Fallback: iframe form POST (para payloads grandes)
         await cloudSaveViaForm();
-
     } catch(e) {
         console.error('[cloudSave]', e);
         setSyncStatus('error','Sin conexión — guardado solo local');
@@ -918,16 +896,30 @@ function getSmartHealthSummary(peopleIds, note){
                   : delta<-0.05? `<span style="color:#80ffb0;">▼ -${abs} kg</span>`
                   : `<span style="opacity:0.6;">→ Sin cambio</span>`;
         }
+        const goal=getWeightToGoal(weightUsed,c.height);
+        const rate=getWeightChangeRate(hist);
+        const eta=getTimeToGoal(weightUsed,c.height,hist);
+        const spark=getWeightSparkline(hist,100,28);
         const tipsHtml=info.tips.slice(0,3).map(t=>`<div class="bmi-tip-item"><span>•</span><span>${t}</span></div>`).join('');
+        const goalHtml=goal&&goal.kg>0
+            ?`<div style="font-size:0.72em;margin-top:4px;padding:4px 8px;background:rgba(255,255,255,0.15);border-radius:6px;">
+                🎯 ${goal.direction==='perder'?'Bajar':'Subir'} <strong>${goal.kg} kg</strong> → rango ideal ${goal.range.min}–${goal.range.max} kg${eta?` · ~${eta.weeks} sem`:''}</div>`
+            :(goal&&goal.kg===0?`<div style="font-size:0.7em;margin-top:3px;color:#80ffb0;">✅ En rango saludable OMS</div>`:'');
+        const rateHtml=rate&&rate.kgPerWeek!==0
+            ?`<span style="font-size:0.68em;opacity:0.75;margin-left:4px;">${rate.kgPerWeek>0?'↑':'↓'} ${Math.abs(rate.kgPerWeek)} kg/sem</span>`:'';
         return `<div class="bmi-person-row">
             <div class="bmi-mini-avatar" style="background:${col}">${getInitials(c.name)}</div>
             <div class="bmi-info">
-                <div class="bmi-name">${c.name}</div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:4px;">
+                    <div class="bmi-name">${c.name}</div>
+                    ${spark?`<div style="flex-shrink:0;">${spark}</div>`:''}
+                </div>
                 <div class="bmi-badge-row">
                     <span class="bmi-badge" style="background:${info.color};color:#fff;">${info.icon} ${info.level}</span>
                     <span class="bmi-imc">IMC ${bmi.toFixed(1)} · ${info.grade}</span>
-                    ${trend}
+                    ${trend}${rateHtml}
                 </div>
+                ${goalHtml}
                 <div class="bmi-tips">${tipsHtml}</div>
             </div>
         </div>`;
@@ -1010,9 +1002,19 @@ function renderContacts(){
         const latestW=c.weightHistory&&c.weightHistory.length?c.weightHistory[c.weightHistory.length-1].weight:null;
         const healthSection=health?`
             <div class="contact-bmi-section" style="background:${health.info.bg};border-left-color:${health.info.borderColor};">
-                <div><span class="contact-bmi-badge" style="background:${health.info.color};">${health.info.icon} ${health.info.level} — ${health.info.grade}</span></div>
-                <div class="contact-bmi-imc">IMC: <strong>${health.bmi.toFixed(2)}</strong> · Peso: <strong>${health.weight} kg</strong> · Talla: <strong>${c.height.toFixed(2)} m</strong></div>
-                ${health.trendText?`<div class="weight-trend ${health.trendClass}">${health.trendText}</div>`:''}
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                    <div>
+                        <div><span class="contact-bmi-badge" style="background:${health.info.color};">${health.info.icon} ${health.info.level} — ${health.info.grade}</span></div>
+                        <div class="contact-bmi-imc">IMC: <strong>${health.bmi.toFixed(2)}</strong> · <strong>${health.weight} kg</strong> · ${c.height.toFixed(2)} m</div>
+                        ${health.trendText?`<div class="weight-trend ${health.trendClass}">${health.trendText}</div>`:''}
+                        ${health.rate&&health.rate.kgPerWeek!==0?`<div style="font-size:0.72em;color:var(--gray4);margin-top:2px;">Ritmo: <strong>${health.rate.kgPerWeek>0?'+':''}${health.rate.kgPerWeek} kg/semana</strong></div>`:''}
+                    </div>
+                    ${health.sparkline?`<div style="flex-shrink:0;opacity:0.9;">${health.sparkline}</div>`:''}
+                </div>
+                ${health.goal&&health.goal.kg>0?`<div style="margin:6px 0 4px;padding:6px 10px;background:rgba(255,255,255,0.6);border-radius:6px;font-size:0.78em;">
+                    🎯 <strong>Meta:</strong> ${health.goal.direction==='perder'?'Bajar':'Subir'} <strong>${health.goal.kg} kg</strong> para llegar al rango ideal (${health.goal.range.min}–${health.goal.range.max} kg)
+                    ${health.eta?`· <strong>~${health.eta.weeks} sem</strong> (${health.eta.eta})`:''}</div>`
+                :`<div style="margin:4px 0;padding:4px 8px;background:rgba(39,174,96,0.15);border-radius:5px;font-size:0.75em;color:#1a7a3d;">✅ Peso en rango saludable OMS</div>`}
                 <div class="contact-bmi-tips"><strong>Recomendación OMS:</strong> ${health.recommendation}</div>
             </div>`
             :`<div class="contact-detail" style="color:var(--gray3);font-style:italic;margin-top:4px;">Registra talla y peso para ver estado OMS personalizado.</div>`;
@@ -1037,6 +1039,76 @@ function renderContacts(){
 
 
 /* Clasificación OMS / WHO oficial de IMC — 8 niveles */
+/* ── Peso ideal y análisis avanzado ─────────────────────────── */
+function getIdealWeightRange(heightM){
+    if(!heightM) return null;
+    const min=Math.round(18.5*heightM*heightM*10)/10;
+    const max=Math.round(24.9*heightM*heightM*10)/10;
+    return {min, max};
+}
+
+function getWeightToGoal(weightKg, heightM){
+    if(!weightKg||!heightM) return null;
+    const range=getIdealWeightRange(heightM);
+    const bmi=weightKg/(heightM*heightM);
+    if(bmi>=18.5&&bmi<=24.9) return {kg:0, direction:'ideal', range};
+    const target=bmi>24.9?range.max:range.min;
+    const diff=Math.round(Math.abs(weightKg-target)*10)/10;
+    const direction=bmi>24.9?'perder':'ganar';
+    return {kg:diff, direction, target, range};
+}
+
+function getWeightChangeRate(weightHistory){
+    if(!weightHistory||weightHistory.length<2) return null;
+    const sorted=[...weightHistory].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const recent=sorted.slice(-Math.min(8,sorted.length));
+    const first=recent[0], last=recent[recent.length-1];
+    const days=(new Date(last.date)-new Date(first.date))/(1000*60*60*24);
+    if(days<1) return null;
+    const deltaKg=last.weight-first.weight;
+    const kgPerWeek=Math.round((deltaKg/days*7)*100)/100;
+    return {kgPerWeek, totalDelta:Math.round(deltaKg*10)/10, days:Math.round(days)};
+}
+
+function getTimeToGoal(weightKg, heightM, weightHistory){
+    if(!weightKg||!heightM||!weightHistory||weightHistory.length<2) return null;
+    const goal=getWeightToGoal(weightKg,heightM);
+    if(!goal||goal.kg===0) return null;
+    const rate=getWeightChangeRate(weightHistory);
+    if(!rate||rate.kgPerWeek===0) return null;
+    // Verifica que la velocidad va en la dirección correcta
+    const needLose=goal.direction==='perder';
+    if(needLose&&rate.kgPerWeek>=0) return null; // Está subiendo, no bajando
+    if(!needLose&&rate.kgPerWeek<=0) return null; // Está bajando, no subiendo
+    const weeks=Math.ceil(goal.kg/Math.abs(rate.kgPerWeek));
+    if(weeks>200) return null; // Más de 4 años → no mostrar
+    const eta=new Date();
+    eta.setDate(eta.getDate()+weeks*7);
+    return {weeks, eta:eta.toLocaleDateString('es-PE',{month:'long',year:'numeric'})};
+}
+
+function getWeightSparkline(weightHistory, width=120, height=36){
+    if(!weightHistory||weightHistory.length<2) return '';
+    const sorted=[...weightHistory].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const weights=sorted.map(e=>e.weight);
+    const minW=Math.min(...weights), maxW=Math.max(...weights);
+    const range=maxW-minW||1;
+    const pad=4;
+    const pts=weights.map((w,i)=>{
+        const x=pad+(i/(weights.length-1))*(width-pad*2);
+        const y=height-pad-(w-minW)/range*(height-pad*2);
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const lastX=pad+((weights.length-1)/(weights.length-1))*(width-pad*2);
+    const lastY=height-pad-(weights[weights.length-1]-minW)/range*(height-pad*2);
+    const color=weights[weights.length-1]>weights[0]?'#e74c3c':'#27ae60';
+    return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="overflow:visible;">
+        <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+        <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="3" fill="${color}"/>
+        <text x="${lastX.toFixed(1)}" y="${(lastY-6).toFixed(1)}" font-size="9" fill="${color}" text-anchor="middle" font-weight="700">${weights[weights.length-1]}kg</text>
+    </svg>`;
+}
+
 function getBmiLevel(bmi){
     if(bmi < 16.0) return {
         level:'Delgadez Severa', grade:'Grado III', icon:'⚠️',
@@ -1138,7 +1210,11 @@ function getHealthSummary(contact){
         else if(delta<-0.05){trendText=`▼ -${abs} kg desde último control`;trendClass='trend-down';}
         else{trendText='→ Sin cambio';trendClass='trend-flat';}
     }
-    return {bmi,info,recommendation:info.tips[0],trendText,trendClass,weight:latest};
+    const goal=getWeightToGoal(latest,contact.height);
+    const rate=getWeightChangeRate(hist);
+    const eta=getTimeToGoal(latest,contact.height,hist);
+    const sparkline=getWeightSparkline(hist);
+    return {bmi,info,recommendation:info.tips[0],trendText,trendClass,weight:latest,goal,rate,eta,sparkline};
 }
 
 function logWeight(id){
@@ -1188,17 +1264,32 @@ function confirmLogWeight(id){
             :delta<-0.05?`<div style="color:#27ae60;font-weight:600;">▼ -${abs} kg desde el último control</div>`
             :`<div style="color:var(--gray3);">→ Sin cambios significativos</div>`;
     }
-    const tipsHtml=info.tips.map(t=>`<li style="margin-bottom:5px;">${t}</li>`).join('');
+    const tipsHtml=info.tips.map(t=>`<li style="margin-bottom:6px;">${t}</li>`).join('');
+    const goal=getWeightToGoal(kg,c.height);
+    const rate=getWeightChangeRate(c.weightHistory);
+    const eta=getTimeToGoal(kg,c.height,c.weightHistory);
+    const spark=getWeightSparkline(c.weightHistory,200,50);
+    const goalBlock=goal&&goal.kg>0
+        ?`<div style="margin:10px 0;padding:10px 14px;background:rgba(0,0,0,0.05);border-radius:8px;">
+            <div style="font-size:0.85em;font-weight:700;margin-bottom:4px;">🎯 Meta de peso saludable</div>
+            <div style="font-size:0.82em;">Rango ideal OMS: <strong>${goal.range.min} – ${goal.range.max} kg</strong></div>
+            <div style="font-size:0.82em;">${goal.direction==='perder'?'Necesitas bajar':'Necesitas ganar'}: <strong>${goal.kg} kg</strong> para llegar a ${goal.target} kg</div>
+            ${rate&&rate.kgPerWeek!==0?`<div style="font-size:0.78em;margin-top:3px;">Ritmo actual: <strong>${rate.kgPerWeek>0?'+':''}${rate.kgPerWeek} kg/semana</strong></div>`:''}
+            ${eta?`<div style="font-size:0.82em;font-weight:700;color:${info.color};margin-top:4px;">📅 Proyección: ~${eta.weeks} semanas (${eta.eta})</div>`:''}
+          </div>`
+        :(goal&&goal.kg===0?`<div style="margin:8px 0;padding:8px 12px;background:rgba(39,174,96,0.12);border-radius:8px;font-size:0.82em;color:#1a7a3d;font-weight:600;">✅ ¡Peso en rango saludable OMS!</div>`:'');
     document.getElementById('weightResult').innerHTML=`
         <div style="background:${info.bg};border:2px solid ${info.borderColor};border-radius:12px;padding:18px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
                 <span style="font-size:2em;">${info.icon}</span>
-                <div>
+                <div style="flex:1;">
                     <div style="font-size:1.1em;font-weight:800;color:${info.color};">${info.level}</div>
                     <div style="font-size:0.8em;color:var(--gray4);">${info.grade} · IMC: <strong>${bmi.toFixed(2)}</strong></div>
                 </div>
+                ${spark?`<div>${spark}</div>`:''}
             </div>
             ${trendHtml}
+            ${goalBlock}
             <div style="margin-top:12px;">
                 <div style="font-size:0.78em;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray4);margin-bottom:8px;">🏥 Recomendaciones OMS</div>
                 <ul style="padding-left:18px;font-size:0.85em;color:var(--gray5);line-height:1.7;">${tipsHtml}</ul>
