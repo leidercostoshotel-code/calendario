@@ -190,6 +190,21 @@
         .note-card.priority-alta:hover{transform:translateY(-6px);box-shadow:0 4px 0 #6c3483,0 16px 35px rgba(0,0,0,0.3);}
         .note-card.priority-media{background:linear-gradient(135deg,var(--blue3),var(--blue2));box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,0.12);}
         .note-card.priority-baja{background:linear-gradient(135deg,var(--teal1),var(--teal2));box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,0.12);}
+        .note-card.bmi-delgadez-severa{background:linear-gradient(135deg,#7b0000,#b71c1c);box-shadow:0 8px 0 #4a0000,0 12px 25px rgba(183,28,28,0.4);border:2px solid rgba(255,100,100,0.3);}
+        .note-card.bmi-delgadez-severa:hover{transform:translateY(-6px);box-shadow:0 4px 0 #4a0000,0 16px 35px rgba(183,28,28,0.5);}
+        .note-card.bmi-delgadez{background:linear-gradient(135deg,#e65100,#bf360c);box-shadow:0 8px 0 #8c2600,0 12px 25px rgba(230,81,0,0.35);border:2px solid rgba(255,150,80,0.3);}
+        .note-card.bmi-delgadez:hover{transform:translateY(-6px);}
+        .note-card.bmi-saludable{background:linear-gradient(135deg,#1b5e20,#2e7d32);box-shadow:0 8px 0 #0a3d0a,0 12px 25px rgba(46,125,50,0.35);border:2px solid rgba(100,255,130,0.25);}
+        .note-card.bmi-saludable:hover{transform:translateY(-6px);}
+        .note-card.bmi-sobrepeso{background:linear-gradient(135deg,#f57f17,#f9a825);box-shadow:0 8px 0 #a35100,0 12px 25px rgba(245,127,23,0.35);border:2px solid rgba(255,220,100,0.3);color:#1a1a00;}
+        .note-card.bmi-sobrepeso:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad1{background:linear-gradient(135deg,#e53935,#c62828);box-shadow:0 8px 0 #8b0000,0 12px 25px rgba(229,57,53,0.4);border:2px solid rgba(255,120,120,0.3);}
+        .note-card.bmi-obesidad1:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad2{background:linear-gradient(135deg,#880e4f,#c2185b);box-shadow:0 8px 0 #560027,0 12px 25px rgba(194,24,91,0.4);border:2px solid rgba(255,100,180,0.3);}
+        .note-card.bmi-obesidad2:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad3{background:linear-gradient(135deg,#4a148c,#6a1b9a);box-shadow:0 8px 0 #2a0050,0 12px 25px rgba(106,27,154,0.45);border:2px solid rgba(200,120,255,0.3);}
+        .note-card.bmi-obesidad3:hover{transform:translateY(-6px);}
+        .note-card[class*="bmi-"] .note-date,.note-card.bmi-sobrepeso .note-date{color:inherit;opacity:0.85;}
         .note-card.birthday{background:linear-gradient(135deg,var(--orange1),var(--orange2));border:2px solid rgba(255,255,255,0.3);box-shadow:0 6px 20px rgba(243,156,18,0.35);}
         .note-card.birthday::before{content:'\1F382';position:absolute;top:-12px;right:-12px;font-size:3em;opacity:0.2;}
         .note-card.completed{background:linear-gradient(135deg,var(--green1),var(--green2))!important;opacity:0.75;box-shadow:var(--shadow-sm)!important;transform:none!important;}
@@ -1579,8 +1594,32 @@ function renderCalendar(){
 function previousMonth(){currentDate.setMonth(currentDate.getMonth()-1);renderCalendar();}
 function nextMonth(){currentDate.setMonth(currentDate.getMonth()+1);renderCalendar();}
 
+function _getWorstBmiClass(note){
+    if(note.metricType!=='peso'||!note.people||!note.people.length) return null;
+    const noteKg=Number(String(note.title).trim().replace(',','.'));
+    const validNoteKg=Number.isFinite(noteKg)&&noteKg>=20&&noteKg<=400?noteKg:null;
+    const classMap={1:'bmi-delgadez-severa',2:'bmi-delgadez',3:'bmi-saludable',4:'bmi-sobrepeso',5:'bmi-obesidad1',6:'bmi-obesidad2',7:'bmi-obesidad3'};
+    const urgencyScore=lvl=>lvl===3?0:Math.abs(lvl-3);
+    let worstClass=null, worstScore=-1;
+    note.people.forEach(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height) return;
+        const hist=c.weightHistory||[];
+        const latestW=hist.length?hist[hist.length-1].weight:null;
+        const w=validNoteKg||latestW;
+        if(!w) return;
+        const bmi=w/(c.height*c.height);
+        const lvl=getBmiLevel(bmi).level;
+        const score=urgencyScore(lvl);
+        if(score>worstScore){worstScore=score;worstClass=classMap[lvl];}
+    });
+    return worstClass;
+}
+
 function renderNoteCard(n){
-    return `<div class="note-card priority-${n.priority} ${n.completed?'completed':''} ${n.isRecurring?'birthday':''}">
+    const bmiClass=_getWorstBmiClass(n);
+    const cardClass=(bmiClass&&!n.isRecurring)?bmiClass:`priority-${n.priority}`;
+    return `<div class="note-card ${cardClass} ${n.completed?'completed':''} ${n.isRecurring?'birthday':''}">
         <div class="note-actions">
             <button class="action-btn" onclick="editNote(${n.id})" title="Editar">&#9998;&#65039;</button>
             ${!n.isRecurring?`<button class="action-btn" onclick="toggleComplete(${n.id})" title="${n.completed?'Reabrir':'Completar'}">${n.completed?'\u2611\ufe0f':'\u2705'}</button>`:''}
