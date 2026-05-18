@@ -190,6 +190,21 @@
         .note-card.priority-alta:hover{transform:translateY(-6px);box-shadow:0 4px 0 #6c3483,0 16px 35px rgba(0,0,0,0.3);}
         .note-card.priority-media{background:linear-gradient(135deg,var(--blue3),var(--blue2));box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,0.12);}
         .note-card.priority-baja{background:linear-gradient(135deg,var(--teal1),var(--teal2));box-shadow:var(--shadow-md);border:1px solid rgba(255,255,255,0.12);}
+        .note-card.bmi-delgadez-severa{background:linear-gradient(135deg,#7b0000,#b71c1c);box-shadow:0 8px 0 #4a0000,0 12px 25px rgba(183,28,28,0.4);border:2px solid rgba(255,100,100,0.3);}
+        .note-card.bmi-delgadez-severa:hover{transform:translateY(-6px);box-shadow:0 4px 0 #4a0000,0 16px 35px rgba(183,28,28,0.5);}
+        .note-card.bmi-delgadez{background:linear-gradient(135deg,#e65100,#bf360c);box-shadow:0 8px 0 #8c2600,0 12px 25px rgba(230,81,0,0.35);border:2px solid rgba(255,150,80,0.3);}
+        .note-card.bmi-delgadez:hover{transform:translateY(-6px);}
+        .note-card.bmi-saludable{background:linear-gradient(135deg,#1b5e20,#2e7d32);box-shadow:0 8px 0 #0a3d0a,0 12px 25px rgba(46,125,50,0.35);border:2px solid rgba(100,255,130,0.25);}
+        .note-card.bmi-saludable:hover{transform:translateY(-6px);}
+        .note-card.bmi-sobrepeso{background:linear-gradient(135deg,#f57f17,#f9a825);box-shadow:0 8px 0 #a35100,0 12px 25px rgba(245,127,23,0.35);border:2px solid rgba(255,220,100,0.3);color:#1a1a00;}
+        .note-card.bmi-sobrepeso:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad1{background:linear-gradient(135deg,#e53935,#c62828);box-shadow:0 8px 0 #8b0000,0 12px 25px rgba(229,57,53,0.4);border:2px solid rgba(255,120,120,0.3);}
+        .note-card.bmi-obesidad1:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad2{background:linear-gradient(135deg,#880e4f,#c2185b);box-shadow:0 8px 0 #560027,0 12px 25px rgba(194,24,91,0.4);border:2px solid rgba(255,100,180,0.3);}
+        .note-card.bmi-obesidad2:hover{transform:translateY(-6px);}
+        .note-card.bmi-obesidad3{background:linear-gradient(135deg,#4a148c,#6a1b9a);box-shadow:0 8px 0 #2a0050,0 12px 25px rgba(106,27,154,0.45);border:2px solid rgba(200,120,255,0.3);}
+        .note-card.bmi-obesidad3:hover{transform:translateY(-6px);}
+        .note-card[class*="bmi-"] .note-date,.note-card.bmi-sobrepeso .note-date{color:inherit;opacity:0.85;}
         .note-card.birthday{background:linear-gradient(135deg,var(--orange1),var(--orange2));border:2px solid rgba(255,255,255,0.3);box-shadow:0 6px 20px rgba(243,156,18,0.35);}
         .note-card.birthday::before{content:'\1F382';position:absolute;top:-12px;right:-12px;font-size:3em;opacity:0.2;}
         .note-card.completed{background:linear-gradient(135deg,var(--green1),var(--green2))!important;opacity:0.75;box-shadow:var(--shadow-sm)!important;transform:none!important;}
@@ -482,8 +497,14 @@
                 <div class="input-group"><label>&#128221; T&iacute;tulo del Registro</label><input type="text" id="noteTitle" placeholder="Registro de peso"></div>
                 <div class="input-group"><label>&#128196; Observaciones</label><textarea id="noteDesc" placeholder="Describe observaciones del peso"></textarea></div>
                 <div class="input-group"><label>&#128197; Fecha</label><input type="date" id="noteDate"></div>
-                <div class="input-group"><label>&#9889; Peso</label>
-                    <select id="noteWeight"><option value="baja">⚖️ Bajo</option><option value="media">⚖️ Medio</option><option value="alta">⚖️ Alto</option></select>
+                <div class="input-group" id="weightPriorityGroup">
+                    <label id="weightPriorityLabel">⚡ Nivel de Alerta</label>
+                    <select id="noteWeight">
+                        <option value="baja">🟢 Normal / Saludable</option>
+                        <option value="media">🟡 Atención / Moderado</option>
+                        <option value="alta">🔴 Urgente / Alto Riesgo</option>
+                    </select>
+                    <div id="weightAutoInfo" style="display:none;margin-top:6px;padding:6px 10px;background:var(--blue-light);border-radius:6px;font-size:0.76em;color:var(--blue1);font-weight:600;"></div>
                 </div>
                 <div class="input-group"><label>&#127874; Tipo de Evento</label>
                     <select id="noteType"><option value="tarea">&#128203; Tarea Normal</option><option value="cumplea&ntilde;os">&#127874; Cumplea&ntilde;os / Aniversario (Recurrente)</option></select>
@@ -836,16 +857,20 @@ personInput.addEventListener('keydown',function(e){
 });
 
 document.addEventListener('click',function(e){if(!e.target.closest('.autocomplete-wrap')) personDrop.classList.remove('show');});
+document.getElementById('noteTitle').addEventListener('input', updateAutoPriority);
+document.getElementById('noteMetricType').addEventListener('change', updateAutoPriority);
 
 function selectPerson(id){
     if(selectedPersonIds.includes(id)) return;
     selectedPersonIds.push(id);
     personInput.value='';personDrop.classList.remove('show');
     renderSelectedPersons();
+    updateAutoPriority();
 }
 function removePerson(id){
     selectedPersonIds=selectedPersonIds.filter(x=>x!==id);
     renderSelectedPersons();
+    updateAutoPriority();
 }
 function renderSelectedPersons(){
     const wrap=document.getElementById('selectedPersons');
@@ -863,14 +888,72 @@ function renderSelectedPersons(){
 
 // ======= CONTACTS CRUD =======
 
+function getAutoPriorityFromBmi(bmi){
+    if(bmi<17.0) return {priority:'alta',label:'🔴 Delgadez — Urgente'};
+    if(bmi<18.5) return {priority:'media',label:'🟡 Delgadez leve — Atención'};
+    if(bmi<25.0) return {priority:'baja',label:'🟢 Peso normal — Saludable'};
+    if(bmi<30.0) return {priority:'media',label:'🟡 Sobrepeso — Atención'};
+    if(bmi<35.0) return {priority:'alta',label:'🔴 Obesidad I — Urgente'};
+    return {priority:'alta',label:'🔴 Obesidad II/III — Urgente'};
+}
+
+function updateAutoPriority(){
+    const metricType=document.getElementById('noteMetricType').value;
+    const sel=document.getElementById('noteWeight');
+    const lbl=document.getElementById('weightPriorityLabel');
+    const info=document.getElementById('weightAutoInfo');
+    if(!sel||!lbl||!info) return;
+
+    if(metricType!=='peso'||!selectedPersonIds.length){
+        sel.disabled=false; sel.style.opacity='1'; sel.style.cursor='';
+        lbl.textContent='⚡ Nivel de Alerta';
+        info.style.display='none';
+        return;
+    }
+
+    // Obtener peso del título si es numérico
+    const titleVal=document.getElementById('noteTitle').value;
+    const noteKg=Number(String(titleVal).trim().replace(',','.'));
+    const validNoteKg=Number.isFinite(noteKg)&&noteKg>=20&&noteKg<=400?noteKg:null;
+
+    let highestIdx=0;
+    const order=['baja','media','alta'];
+    let infoLines=[];
+
+    selectedPersonIds.forEach(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height) return;
+        const w=validNoteKg||(c.weightHistory&&c.weightHistory.length?c.weightHistory[c.weightHistory.length-1].weight:null);
+        if(!w) return;
+        const bmi=w/(c.height*c.height);
+        const result=getAutoPriorityFromBmi(bmi);
+        const idx=order.indexOf(result.priority);
+        if(idx>highestIdx) highestIdx=idx;
+        infoLines.push(`${c.name}: IMC ${bmi.toFixed(1)} — ${result.label}`);
+    });
+
+    if(infoLines.length){
+        sel.value=order[highestIdx];
+        sel.disabled=true; sel.style.opacity='0.75'; sel.style.cursor='not-allowed';
+        lbl.textContent='⚡ Nivel de Alerta (auto)';
+        info.innerHTML='🤖 Calculado automáticamente:<br>'+infoLines.join('<br>');
+        info.style.display='block';
+    } else {
+        sel.disabled=false; sel.style.opacity='1'; sel.style.cursor='';
+        lbl.textContent='⚡ Nivel de Alerta';
+        info.style.display='none';
+    }
+}
+
 function updateTitlePlaceholder(){
     const metric=document.getElementById('noteMetricType').value;
     const title=document.getElementById('noteTitle');
     const desc=document.getElementById('noteDesc');
-    const placeholders={peso:'Registro de peso',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
-    const descPlaceholders={peso:'Describe observaciones del peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
+    const placeholders={peso:'Ej: 79.4',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
+    const descPlaceholders={peso:'Observaciones del registro de peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
     title.placeholder=placeholders[metric]||'Título del registro';
     desc.placeholder=descPlaceholders[metric]||'Describe observaciones importantes';
+    updateAutoPriority();
 }
 
 function getSmartHealthSummary(peopleIds, note){
@@ -1458,7 +1541,10 @@ function saveChanges(){
 function resetNoteForm(){
     ['noteTitle','noteDesc'].forEach(x=>document.getElementById(x).value='');
     const _rd=new Date();document.getElementById('noteDate').value=_rd.getFullYear()+'-'+String(_rd.getMonth()+1).padStart(2,'0')+'-'+String(_rd.getDate()).padStart(2,'0');
-    document.getElementById('noteWeight').value='baja';document.getElementById('noteType').value='tarea';document.getElementById('noteMetricType').value='peso';updateTitlePlaceholder();
+    const nw=document.getElementById('noteWeight');nw.value='baja';nw.disabled=false;nw.style.opacity='1';nw.style.cursor='';
+    document.getElementById('weightAutoInfo').style.display='none';
+    document.getElementById('weightPriorityLabel').textContent='⚡ Nivel de Alerta';
+    document.getElementById('noteType').value='tarea';document.getElementById('noteMetricType').value='peso';updateTitlePlaceholder();
     document.getElementById('addNoteBtn').style.display='block';document.getElementById('saveNoteBtn').style.display='none';
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
 }
@@ -1508,8 +1594,32 @@ function renderCalendar(){
 function previousMonth(){currentDate.setMonth(currentDate.getMonth()-1);renderCalendar();}
 function nextMonth(){currentDate.setMonth(currentDate.getMonth()+1);renderCalendar();}
 
+function _getWorstBmiClass(note){
+    if(note.metricType!=='peso'||!note.people||!note.people.length) return null;
+    const noteKg=Number(String(note.title).trim().replace(',','.'));
+    const validNoteKg=Number.isFinite(noteKg)&&noteKg>=20&&noteKg<=400?noteKg:null;
+    const classMap={1:'bmi-delgadez-severa',2:'bmi-delgadez',3:'bmi-saludable',4:'bmi-sobrepeso',5:'bmi-obesidad1',6:'bmi-obesidad2',7:'bmi-obesidad3'};
+    const urgencyScore=lvl=>lvl===3?0:Math.abs(lvl-3);
+    let worstClass=null, worstScore=-1;
+    note.people.forEach(pid=>{
+        const c=contacts.find(x=>x.id===pid);
+        if(!c||!c.height) return;
+        const hist=c.weightHistory||[];
+        const latestW=hist.length?hist[hist.length-1].weight:null;
+        const w=validNoteKg||latestW;
+        if(!w) return;
+        const bmi=w/(c.height*c.height);
+        const lvl=getBmiLevel(bmi).level;
+        const score=urgencyScore(lvl);
+        if(score>worstScore){worstScore=score;worstClass=classMap[lvl];}
+    });
+    return worstClass;
+}
+
 function renderNoteCard(n){
-    return `<div class="note-card priority-${n.priority} ${n.completed?'completed':''} ${n.isRecurring?'birthday':''}">
+    const bmiClass=_getWorstBmiClass(n);
+    const cardClass=(bmiClass&&!n.isRecurring)?bmiClass:`priority-${n.priority}`;
+    return `<div class="note-card ${cardClass} ${n.completed?'completed':''} ${n.isRecurring?'birthday':''}">
         <div class="note-actions">
             <button class="action-btn" onclick="editNote(${n.id})" title="Editar">&#9998;&#65039;</button>
             ${!n.isRecurring?`<button class="action-btn" onclick="toggleComplete(${n.id})" title="${n.completed?'Reabrir':'Completar'}">${n.completed?'\u2611\ufe0f':'\u2705'}</button>`:''}
