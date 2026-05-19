@@ -1999,6 +1999,28 @@ function resetNoteForm(){
     editingNoteId=null;selectedPersonIds=[];renderSelectedPersons();
 }
 function deleteNote(id){if(confirm('\u00bfEliminar esta nota?')){notes=notes.filter(n=>n.id!==id);saveNotes();renderNotes();renderCalendar();closeModal();}}
+async function sendNoteByEmail(id){
+    const n=notes.find(x=>x.id===id);
+    if(!n) return;
+    const people=Array.isArray(n.people)?n.people:[];
+    if(!people.length){alert('Esta nota no tiene contactos asignados. Agrega un contacto a la nota para poder enviarla.');return;}
+    const btn=document.querySelector(`.note-actions button[onclick="sendNoteByEmail(${id})"]`);
+    if(btn){btn.textContent='\u23f3';btn.disabled=true;}
+    try{
+        const url=SHEET_URL+'?action=sendNote&note='+encodeURIComponent(JSON.stringify(n))+'&contacts='+encodeURIComponent(JSON.stringify(contacts));
+        const d=await jsonpRequest(url);
+        if(d.success){
+            const names=(d.sent||[]).join(', ');
+            alert('\u2705 Email enviado a: '+names+(d.noEmail&&d.noEmail.length?' | Sin email: '+d.noEmail.join(', '):''));
+        } else {
+            alert('\u274c Error: '+(d.error||'No se pudo enviar'));
+        }
+    } catch(e){
+        alert('\u274c Error de conexi\u00f3n: '+e.message);
+    } finally {
+        if(btn){btn.textContent='\ud83d\udce7';btn.disabled=false;}
+    }
+}
 function toggleComplete(id){const n=notes.find(x=>x.id===id);if(n){if(n.isRecurring){alert('Los cumplea\u00f1os son recordatorios permanentes.');return;}n.completed=!n.completed;saveNotes();renderNotes();renderCalendar();updateTicker();}}
 
 function getPeopleHTML(peopleIds,small){
@@ -2087,6 +2109,7 @@ function renderNoteCard(n){
         <div class="note-actions">
             <button class="action-btn" onclick="editNote(${n.id})" title="Editar">\u270f\ufe0f</button>
             ${!n.isRecurring?`<button class="action-btn" onclick="toggleComplete(${n.id})" title="${n.completed?'Reabrir':'Completar'}">${n.completed?'\u2705':'\u2611\ufe0f'}</button>`:''}
+            <button class="action-btn" onclick="sendNoteByEmail(${n.id})" title="Enviar por correo">\ud83d\udce7</button>
             <button class="action-btn" onclick="deleteNote(${n.id})" title="Eliminar">\ud83d\uddd1\ufe0f</button>
         </div>
         <div class="note-card-header">

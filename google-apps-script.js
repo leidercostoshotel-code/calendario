@@ -69,9 +69,10 @@ function doGet(e) {
   var params = e.parameter || {}, action = params.action || 'getAll', callback = params.callback;
   var result;
   try {
-    if (action === 'getAll')       result = getAllData();
-    else if (action === 'saveAll') result = saveAll(params);
-    else                           result = { success: false, error: 'Acción desconocida: ' + action };
+    if (action === 'getAll')         result = getAllData();
+    else if (action === 'saveAll')   result = saveAll(params);
+    else if (action === 'sendNote')  result = sendNoteEmail(params);
+    else                             result = { success: false, error: 'Acción desconocida: ' + action };
   } catch (err) { result = { success: false, error: err.message }; }
   var json = JSON.stringify(result);
   if (callback) return ContentService.createTextOutput(callback+'('+json+')').setMimeType(ContentService.MimeType.JAVASCRIPT);
@@ -201,6 +202,46 @@ function sendTodayReports(notesArr, contactsArr) {
       Logger.log('Error enviando a ' + contact.email + ': ' + emailErr.message);
     }
   });
+}
+
+// ── Envía una nota específica por email al instante ─────────
+function sendNoteEmail(params) {
+  var note, contacts;
+  try {
+    note     = JSON.parse(decodeURIComponent(params.note     || '{}'));
+    contacts = JSON.parse(decodeURIComponent(params.contacts || '[]'));
+  } catch(_) {
+    return { success: false, error: 'Parámetros inválidos' };
+  }
+  if (!note || !note.id) return { success: false, error: 'Nota no válida' };
+
+  var people = parsePeople(note.people);
+  if (!people.length) return { success: false, error: 'La nota no tiene contactos asignados' };
+
+  var sent = [], noEmail = [], errors = [];
+  people.forEach(function(pid) {
+    var contact = null;
+    contacts.forEach(function(c) { if (String(c.id) === String(pid)) contact = c; });
+    if (!contact) return;
+    if (!contact.email) { noEmail.push(contact.name); return; }
+    try {
+      var html = buildEmailHtml(contact, note, false);
+      var metricLabels = {peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Nota'};
+      var label = metricLabels[note.metricType||'otro'] || 'Nota';
+      MailApp.sendEmail({
+        to: contact.email,
+        subject: '📋 ' + label + ' — ' + contact.name + ' · ' + (note.date || ''),
+        htmlBody: html
+      });
+      sent.push(contact.name);
+    } catch(err) {
+      errors.push(contact.name + ': ' + err.message);
+    }
+  });
+
+  if (errors.length) return { success: false, error: errors.join('; '), sent: sent };
+  if (!sent.length && noEmail.length) return { success: false, error: 'Ningún contacto tiene email registrado: ' + noEmail.join(', ') };
+  return { success: true, sent: sent, noEmail: noEmail };
 }
 
 // ── Diagnóstico de email (ejecutar manualmente para probar) ─
