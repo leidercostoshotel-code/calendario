@@ -136,45 +136,114 @@ function saveAll(params) {
   return { success: true, saved: { notes: notesArr.length, contacts: contactsArr.length } };
 }
 
+// ── Parsea el campo people (string JSON o array) ───────────
+function parsePeople(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  var s = String(raw).trim();
+  if (!s || s === '[]') return [];
+  try { return JSON.parse(s); } catch(_) {}
+  // Formato "[123,456]" sin comillas
+  var nums = s.replace(/[\[\]\s]/g,'').split(',').filter(Boolean);
+  return nums.map(function(x){ return isNaN(x) ? x : Number(x); });
+}
+
 // ── Envía resumen si hay nota de peso de hoy ────────────────
 function sendTodayReports(notesArr, contactsArr) {
-  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var tz    = Session.getScriptTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var props = PropertiesService.getScriptProperties();
 
-  // Agrupa notas de peso de hoy por persona
+  Logger.log('sendTodayReports: today=' + today + ', notes=' + notesArr.length + ', contacts=' + contactsArr.length);
+
+  // Encuentra notas de peso de hoy
   var byContact = {};
   notesArr.forEach(function(n) {
-    if (n.metricType !== 'peso' || n.date !== today) return;
-    var people = [];
-    try { people = JSON.parse(n.people || '[]'); } catch(_) {}
-    if (typeof n.people === 'string' && n.people.match(/^\[/)) {
-      try { people = JSON.parse(n.people); } catch(_) {}
-    } else if (Array.isArray(n.people)) { people = n.people; }
+    var mt   = String(n.metricType || '').trim();
+    var date = String(n.date || '').trim().substring(0, 10);
+    Logger.log('  nota: metricType=' + mt + ' date=' + date + ' people=' + JSON.stringify(n.people));
+    if (mt !== 'peso') return;
+    // Acepta hoy o ayer (por diferencias de zona horaria)
+    var yesterday = Utilities.formatDate(new Date(new Date().getTime() - 86400000), tz, 'yyyy-MM-dd');
+    if (date !== today && date !== yesterday) return;
+    var people = parsePeople(n.people);
     people.forEach(function(pid) {
-      if (!byContact[pid]) byContact[pid] = [];
-      byContact[pid].push(n);
+      var key = String(pid);
+      if (!byContact[key]) byContact[key] = [];
+      byContact[key].push(n);
     });
   });
+
+  Logger.log('Contactos con nota hoy: ' + Object.keys(byContact).join(', '));
 
   Object.keys(byContact).forEach(function(pid) {
-    var contact = contactsArr.find(function(c) { return String(c.id) === String(pid); });
-    if (!contact || !contact.email) return;
+    var contact = null;
+    contactsArr.forEach(function(c) { if (String(c.id) === pid) contact = c; });
+    if (!contact) { Logger.log('Contacto no encontrado: ' + pid); return; }
+    if (!contact.email) { Logger.log('Sin email: ' + contact.name); return; }
 
-    // Evita enviar más de 1 email por contacto por día
-    var lastKey = 'email_sent_' + pid;
+    // Evita duplicado — pero si mismo día no envió, fuerza reenvío
+    var lastKey  = 'email_sent_' + pid;
     var lastSent = props.getProperty(lastKey);
-    if (lastSent === today) return;
+    if (lastSent === today) { Logger.log('Ya enviado hoy a ' + contact.email); return; }
 
-    var note = byContact[pid][0];
-    var html = buildEmailHtml(contact, note, false);
-    MailApp.sendEmail({
-      to: contact.email,
-      subject: '📊 Resumen de salud — ' + contact.name + ' · ' + formatDateES(today),
-      htmlBody: html
-    });
-    props.setProperty(lastKey, today);
-    Logger.log('📧 Email enviado a ' + contact.email);
+    try {
+      var note = byContact[pid][0];
+      var hist = [];
+      try { hist = JSON.parse(contact.weightHistory || '[]'); } catch(_) {}
+      // Asignar historial ya parseado
+      contact.weightHistory = hist;
+      var html = buildEmailHtml(contact, note, false);
+      MailApp.sendEmail({ to: contact.email, subject: '\ud83d\udcca Resumen de salud \u2014 ' + contact.name + ' \u00b7 ' + formatDateES(today), htmlBody: html });
+      props.setProperty(lastKey, today);
+      Logger.log('\ud83d\udce7 Email enviado a ' + contact.email);
+    } catch(emailErr) {
+      Logger.log('Error enviando a ' + contact.email + ': ' + emailErr.message);
+    }
   });
+}
+
+// ── Diagnóstico de email (ejecutar manualmente para probar) ─
+function diagnosticoEmail() {
+  var ss       = getSpreadsheet();
+  var contacts = readSheet(ss, SHEET_NAME_CONTACTS);
+  var notes    = readSheet(ss, SHEET_NAME_NOTES);
+  var tz       = Session.getScriptTimeZone();
+  var today    = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+  Logger.log('=== DIAGNÓSTICO EMAIL ===');
+  Logger.log('Zona horaria: ' + tz);
+  Logger.log('Hoy: ' + today);
+  Logger.log('Contactos: ' + contacts.length);
+  Logger.log('Notas: ' + notes.length);
+
+  contacts.forEach(function(c) {
+    Logger.log('\nContacto: ' + c.name + ' | email: ' + (c.email||'NO TIENE') + ' | id: ' + c.id);
+  });
+
+  Logger.log('\nNotas de tipo peso:');
+  notes.forEach(function(n) {
+    if (String(n.metricType||'').trim() === 'peso') {
+      Logger.log('  "' + n.title + '" fecha=' + n.date + ' people=' + JSON.stringify(n.people));
+    }
+  });
+
+  // Intenta enviar email de prueba al primer contacto con email
+  var target = null;
+  contacts.forEach(function(c){ if (!target && c.email) target = c; });
+  if (target) {
+    Logger.log('\nEnviando email de prueba a: ' + target.email);
+    try {
+      var hist = [];
+      try { hist = JSON.parse(target.weightHistory || '[]'); } catch(_) {}
+      target.weightHistory = hist;
+      var html = buildEmailHtml(target, null, false);
+      MailApp.sendEmail({ to: target.email, subject: 'TEST \ud83d\udcca Diagnóstico email — Agenda Salud', htmlBody: html });
+      Logger.log('\u2705 Email de prueba enviado!');
+    } catch(e) { Logger.log('\u274c Error: ' + e.message); }
+  } else {
+    Logger.log('\u274c Ningún contacto tiene email registrado');
+  }
 }
 
 // ── Resumen semanal (trigger automático) ────────────────────
