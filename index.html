@@ -94,6 +94,7 @@
         .btn:hover{box-shadow:0 8px 25px rgba(30,60,114,0.4);transform:translateY(-2px);}
         .btn-sm{padding:10px 20px;font-size:0.88em;width:auto;display:inline-flex;align-items:center;gap:6px;}
         .btn-green{background:linear-gradient(135deg,var(--green2),var(--green1));}
+        .btn-secondary{background:linear-gradient(135deg,var(--gray3),var(--gray4));}
         .btn-purple{background:linear-gradient(135deg,var(--purple2),var(--purple1));}
         .btn-orange{background:linear-gradient(135deg,var(--orange1),var(--orange2));}
         .btn-red{background:linear-gradient(135deg,var(--red1),var(--red2));box-shadow:0 4px 15px rgba(192,57,43,0.3);}
@@ -651,6 +652,7 @@
                 </div>
                 <button class="btn" id="addContactBtn" onclick="addContact()">&#10133; Agregar Contacto</button>
                 <button class="btn btn-green" id="saveContactBtn" style="display:none;" onclick="saveContactChanges()">&#128190; Guardar Cambios</button>
+                <button class="btn btn-secondary" id="cancelContactBtn" style="display:none;" onclick="cancelContactEdit()">&#10006; Cancelar</button>
             </div>
             <div class="card">
                 <h2><span class="icon-3d">&#128101;</span> Mis Contactos</h2>
@@ -1284,6 +1286,7 @@ function getAvatarHTML(c, size){
 }
 
 function addContact(){
+    if(editingContactId) return;
     const name=document.getElementById('contactName').value.trim();
     const phone=document.getElementById('contactPhone').value.trim();
     const email=document.getElementById('contactEmail').value.trim();
@@ -1315,6 +1318,7 @@ function editContact(id){
     document.getElementById('contactWaist').value=c.waist||'';
     document.getElementById('addContactBtn').style.display='none';
     document.getElementById('saveContactBtn').style.display='block';
+    document.getElementById('cancelContactBtn').style.display='block';
     editingContactId=id;
     pendingAvatarData = c.avatar || null;
     updateAvatarPreview(
@@ -1351,6 +1355,7 @@ function deleteContact(id){
     if(!confirm('\u00bfEliminar este contacto?')) return;
     contacts=contacts.filter(c=>c.id!==id);saveContacts();renderContacts();
 }
+function cancelContactEdit(){resetContactForm();}
 function resetContactForm(){
     ['contactName','contactPhone','contactEmail','contactHeight','contactAge','contactWaist'].forEach(x=>document.getElementById(x).value='');
     document.getElementById('contactCategory').value='trabajo';
@@ -1358,6 +1363,7 @@ function resetContactForm(){
     document.getElementById('contactActivity').value='sedentary';
     document.getElementById('addContactBtn').style.display='block';
     document.getElementById('saveContactBtn').style.display='none';
+    document.getElementById('cancelContactBtn').style.display='none';
     editingContactId=null;
     pendingAvatarData=null;
     document.getElementById('avatarFileInput').value='';
