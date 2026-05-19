@@ -499,9 +499,40 @@
 
             .card{padding:15px 13px;}
         }
+
+        /* UPDATE BANNER */
+        #updateBanner{
+            display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+            z-index:9999;background:linear-gradient(135deg,#1e3c72,#2a5298);
+            color:#fff;border-radius:16px;padding:14px 20px;
+            box-shadow:0 8px 32px rgba(0,0,0,0.35),0 0 0 1px rgba(255,255,255,0.15);
+            display:none;align-items:center;gap:14px;max-width:92vw;
+            animation:slideUp 0.4s cubic-bezier(0.22,1,0.36,1);
+            backdrop-filter:blur(10px);
+        }
+        #updateBanner.show{display:flex;}
+        @keyframes slideUp{from{opacity:0;transform:translateX(-50%) translateY(30px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+        #updateBanner .upd-icon{font-size:1.6em;flex-shrink:0;}
+        #updateBanner .upd-text{flex:1;min-width:0;}
+        #updateBanner .upd-text strong{display:block;font-size:0.92em;font-weight:700;}
+        #updateBanner .upd-text span{font-size:0.75em;opacity:0.75;}
+        #updateBanner .upd-btn{background:linear-gradient(135deg,#38bdf8,#0ea5e9);color:#fff;border:none;padding:9px 18px;border-radius:10px;font-weight:700;font-size:0.82em;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:transform 0.15s;}
+        #updateBanner .upd-btn:hover{transform:scale(1.05);}
+        #updateBanner .upd-close{background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.2em;cursor:pointer;padding:4px;flex-shrink:0;line-height:1;}
+        #updateBanner .upd-close:hover{color:#fff;}
     </style>
 </head>
 <body>
+<!-- UPDATE BANNER -->
+<div id="updateBanner" role="status" aria-live="polite">
+    <span class="upd-icon">🚀</span>
+    <div class="upd-text">
+        <strong>Nueva versión disponible</strong>
+        <span>La app se actualizó con mejoras</span>
+    </div>
+    <button class="upd-btn" onclick="applyUpdate()">Actualizar ahora</button>
+    <button class="upd-close" onclick="document.getElementById('updateBanner').classList.remove('show')" title="Cerrar">✕</button>
+</div>
 <div class="container">
     <div class="header">
         <h1>&#128203; Mis Agendas<span class="subtitle">Leider Tisnado Mego</span></h1>
@@ -2049,17 +2080,46 @@ async function manualSync() {
 })();
 
 // ======= SERVICE WORKER (PWA) =======
+// SERVICE WORKER — actualizaciones con banner
+let _swReg = null;
+
+function showUpdateBanner() {
+    document.getElementById('updateBanner').classList.add('show');
+}
+
+function applyUpdate() {
+    if (_swReg && _swReg.waiting) {
+        _swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+    document.getElementById('updateBanner').classList.remove('show');
+}
+
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(reg => {
-        // Detecta nueva versión y recarga automáticamente
+        _swReg = reg;
+
+        // Ya hay una versión esperando (p.ej. tab reabierto)
+        if (reg.waiting) { showUpdateBanner(); }
+
+        // Detecta nueva versión mientras la app está abierta
         reg.addEventListener('updatefound', () => {
             const w = reg.installing;
             w.addEventListener('statechange', () => {
-                if (w.state === 'activated' && navigator.serviceWorker.controller) {
-                    window.location.reload();
+                if (w.state === 'installed' && navigator.serviceWorker.controller) {
+                    showUpdateBanner();
                 }
             });
         });
+
+        // Comprueba si hay update cada vez que el usuario vuelve a la app
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') reg.update();
+        });
+    });
+
+    // Cuando el SW nuevo toma control → recarga para servir archivos frescos
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
     });
 }
 </script>
