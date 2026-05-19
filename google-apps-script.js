@@ -202,7 +202,7 @@ function writeNotes(ss, notes) {
 // ── Escribe contactos ───────────────────────────────────────
 function writeContacts(ss, contacts) {
   var sheet   = getOrCreateSheet(ss, SHEET_NAME_CONTACTS);
-  var headers = ['id','name','phone','email','category','height','weightHistory','avatar'];
+  var headers = ['id','name','phone','email','category','height','weightHistory','avatar','age','sex','activity','waist'];
   sheet.clearContents();
   sheet.appendRow(headers);
   contacts.forEach(function(c) {
@@ -214,7 +214,11 @@ function writeContacts(ss, contacts) {
       c.category || '',
       c.height   != null ? c.height : '',
       JSON.stringify(c.weightHistory || []),
-      c.avatar   || ''
+      c.avatar   || '',
+      c.age      || '',
+      c.sex      || '',
+      c.activity || '',
+      c.waist    != null ? c.waist : ''
     ]);
   });
   styleHeader(sheet, headers.length);
