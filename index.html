@@ -194,6 +194,18 @@
         .person-group-header .pg-name{font-family:var(--serif);font-size:1.08em;font-weight:700;color:var(--blue1);}
         .person-group-header .pg-count{font-size:0.75em;color:var(--gray3);font-weight:500;margin-left:auto;}
         .person-group-list{display:flex;flex-direction:column;gap:10px;}
+        .pg-extra-notes{display:none;flex-direction:column;gap:10px;margin-top:0;}
+        .pg-extra-notes.open{display:flex;}
+        .pg-toggle-btn{
+            width:100%;margin-top:6px;padding:9px 0;border:none;border-radius:10px;cursor:pointer;
+            background:linear-gradient(135deg,var(--blue3),var(--blue2));color:#fff;
+            font-family:var(--sans);font-size:0.82em;font-weight:700;letter-spacing:0.03em;
+            display:flex;align-items:center;justify-content:center;gap:6px;
+            box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:all 0.2s;
+        }
+        .pg-toggle-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
+        .pg-toggle-btn .pg-toggle-arrow{transition:transform 0.25s;display:inline-block;}
+        .pg-toggle-btn.open .pg-toggle-arrow{transform:rotate(180deg);}
         .note-card{border-radius:var(--radius);padding:22px;position:relative;overflow:hidden;transition:all 0.4s cubic-bezier(0.22,1,0.36,1);cursor:pointer;color:var(--white);}
         .note-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-xl);}
         .note-card.priority-alta{background:linear-gradient(135deg,var(--purple2),var(--purple1));box-shadow:0 8px 0 #6c3483,0 12px 25px rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.15);transform:translateY(-2px);}
@@ -2166,7 +2178,8 @@ function renderNotes(){
         return;
     }
 
-    const sortFn=(a,b)=>{if(a.isRecurring!==b.isRecurring) return a.isRecurring?-1:1;if(a.date!==b.date) return new Date(a.date)-new Date(b.date);if(a.completed!==b.completed) return a.completed?1:-1;return 0;};
+    // Más reciente primero dentro de cada grupo
+    const sortFn=(a,b)=>{if(a.isRecurring!==b.isRecurring) return a.isRecurring?-1:1;if(a.date!==b.date) return new Date(b.date)-new Date(a.date);if(a.completed!==b.completed) return a.completed?1:-1;return 0;};
 
     // Separate: notes with people vs without
     const withPeople=fn.filter(n=>n.people&&n.people.length>0);
@@ -2204,13 +2217,23 @@ function renderNotes(){
             const _pgAvatarInner=_pgHasPhoto?getAvatarHTML(c,'md'):getInitials(c.name);
             const _pgAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':col;
             const groupNotes=[...personGroups[pid]].sort(sortFn);
+            const visible=groupNotes.slice(0,2);
+            const hidden=groupNotes.slice(2);
+            const gid='pg_'+pid;
+            const extraHtml=hidden.length?`
+                <div class="pg-extra-notes" id="${gid}_extra">${hidden.map(n=>renderNoteCard(n)).join('')}</div>
+                <button class="pg-toggle-btn" id="${gid}_btn" onclick="togglePgExtra('${gid}')">
+                    <span class="pg-toggle-arrow">▼</span>
+                    <span id="${gid}_label">Ver ${hidden.length} registro${hidden.length!==1?'s':''} más antiguos</span>
+                </button>`:'';
             html+=`<div class="person-group">
                 <div class="person-group-header">
                     <div class="pg-avatar ${_pgHasPhoto?'has-photo':''}" style="background:${_pgAvatarBg}">${_pgAvatarInner}</div>
                     <div class="pg-name">${c.name}</div>
                     <div class="pg-count">${groupNotes.length} nota${groupNotes.length!==1?'s':''}</div>
                 </div>
-                <div class="person-group-list">${groupNotes.map(n=>renderNoteCard(n)).join('')}</div>
+                <div class="person-group-list">${visible.map(n=>renderNoteCard(n)).join('')}</div>
+                ${extraHtml}
             </div>`;
         });
         html+='</div>';
@@ -2226,6 +2249,16 @@ function renderNotes(){
     nl.innerHTML=html;
 }
 
+function togglePgExtra(gid){
+    const extra=document.getElementById(gid+'_extra');
+    const btn=document.getElementById(gid+'_btn');
+    const label=document.getElementById(gid+'_label');
+    if(!extra||!btn) return;
+    const isOpen=extra.classList.toggle('open');
+    btn.classList.toggle('open',isOpen);
+    const hiddenCount=extra.querySelectorAll('.note-card').length;
+    label.textContent=isOpen?'Ocultar registros anteriores':'Ver '+hiddenCount+' registro'+(hiddenCount!==1?'s':'')+' más antiguos';
+}
 function updateTicker(){
     const t=new Date(),y=t.getFullYear(),ts=`${y}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
     const tn=getRelevantNotes(ts,y),tp=tn.filter(n=>!n.isRecurring&&!n.completed),tr=tn.filter(n=>n.isRecurring),h=holidays[ts];
