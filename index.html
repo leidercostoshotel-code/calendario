@@ -2197,6 +2197,8 @@ function renderNotes(){
     const personIds=Object.keys(personGroups).map(Number);
     personIds.sort((a,b)=>{
         const ca=contacts.find(x=>x.id===a),cb=contacts.find(x=>x.id===b);
+        const sexA=(ca&&ca.sex==='f')?0:1, sexB=(cb&&cb.sex==='f')?0:1;
+        if(sexA!==sexB) return sexA-sexB;
         return (ca?ca.name:'').localeCompare(cb?cb.name:'');
     });
 
