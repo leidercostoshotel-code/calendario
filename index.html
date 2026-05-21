@@ -2217,8 +2217,8 @@ function renderNotes(){
             const _pgAvatarInner=_pgHasPhoto?getAvatarHTML(c,'md'):getInitials(c.name);
             const _pgAvatarBg=(c.avatar&&!c.avatar.startsWith('data:')&&c.avatar.length<=8)?'rgba(255,255,255,0.1)':col;
             const groupNotes=[...personGroups[pid]].sort(sortFn);
-            const visible=groupNotes.slice(0,2);
-            const hidden=groupNotes.slice(2);
+            const visible=groupNotes.slice(0,1);
+            const hidden=groupNotes.slice(1);
             const gid='pg_'+pid;
             const extraHtml=hidden.length?`
                 <div class="pg-extra-notes" id="${gid}_extra">${hidden.map(n=>renderNoteCard(n)).join('')}</div>
