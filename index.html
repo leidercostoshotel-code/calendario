@@ -353,9 +353,7 @@
 
         ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:rgba(30,60,114,0.15);border-radius:4px;}::-webkit-scrollbar-thumb:hover{background:rgba(30,60,114,0.3);}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px);}to{opacity:1;transform:translateY(0);}}
-        .card{animation:fadeUp 0.6s cubic-bezier(0.22,1,0.36,1) both;}
         @keyframes slideInUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
-        .note-card{animation:slideInUp 0.5s ease both;}
 
         /* ===== MOBILE BOTTOM NAV (oculto en desktop) ===== */
         .mobile-bottom-nav{display:none;}
@@ -919,7 +917,7 @@ function switchTab(tab){
     // Sincroniza bottom nav móvil
     document.getElementById('navAgenda').classList.toggle('active',tab==='agenda');
     document.getElementById('navContacts').classList.toggle('active',tab==='contacts');
-    if(tab==='contacts') renderContacts();
+    if(tab==='contacts') requestAnimationFrame(renderContacts);
     window.scrollTo({top:0,behavior:'smooth'});
 }
 
