@@ -13,8 +13,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Agenda">
     <link rel="apple-touch-icon" href="icon.svg">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"></noscript>
     <style>
         *{margin:0;padding:0;box-sizing:border-box;}
         :root{
@@ -1869,7 +1871,14 @@ function viewWeightHistory(id){
 
 /* ======= EXCEL EXPORT ======= */
 function exportToExcel(){
-    if(typeof XLSX === 'undefined'){alert('Librería Excel no disponible. Verifica tu conexión a internet.');return;}
+    if(typeof XLSX === 'undefined'){
+        const s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload=()=>exportToExcel();
+        s.onerror=()=>alert('Librería Excel no disponible. Verifica tu conexión a internet.');
+        document.head.appendChild(s);
+        return;
+    }
     const wb=XLSX.utils.book_new();
 
     /* ── Hoja 1: NOTAS ── */
