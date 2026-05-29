@@ -854,9 +854,12 @@ async function cloudLoad() {
     try {
         const d = await jsonpRequest(SHEET_URL + '?action=getAll');
         if (d.success) {
-            // Aceptamos arrays vac\u00edos: si en otro dispositivo borraste todo,
-            // queremos que la eliminaci\u00f3n se propague (antes se ignoraba).
-            if (Array.isArray(d.notes)) {
+            // Protege datos locales no sincronizados: si el usuario guard\u00f3 algo
+            // despu\u00e9s del \u00faltimo sync exitoso, no sobreescribir con datos viejos de la nube.
+            const lastLocal = Number(localStorage.getItem('lastLocalSave') || 0);
+            const lastCloud = Number(localStorage.getItem('lastCloudSync') || 0);
+            const localIsNewer = lastLocal > lastCloud + 3000; // 3s de margen
+            if (Array.isArray(d.notes) && !localIsNewer) {
                 notes = d.notes.map(n => ({
                     ...n,
                     date: normalizeDate(n.date),
@@ -867,7 +870,7 @@ async function cloudLoad() {
                 }));
                 localStorage.setItem('agendaNotes', JSON.stringify(notes));
             }
-            if (Array.isArray(d.contacts)) {
+            if (Array.isArray(d.contacts) && !localIsNewer) {
                 contacts = dedupeContacts(d.contacts.map(c => ({
                     ...c,
                     height: c.height ? Number(c.height) : null,
@@ -915,10 +918,10 @@ function normalizeDate(d){
 
 // Load from localStorage first (instant), then cloud
 function loadNotes(){const s=localStorage.getItem('agendaNotes');if(s){notes=JSON.parse(s);notes=notes.map(n=>({...n,date:normalizeDate(n.date),isRecurring:n.isRecurring===undefined?(n.type==='cumplea\u00f1os'):n.isRecurring,people:n.people||[]}));}}
-function saveNotes(){localStorage.setItem('agendaNotes',JSON.stringify(notes));cloudSave();}
+function saveNotes(){localStorage.setItem('agendaNotes',JSON.stringify(notes));localStorage.setItem('lastLocalSave',Date.now());cloudSave();}
 function loadContacts(){const s=localStorage.getItem('agendaContacts');if(s) contacts=JSON.parse(s);contacts=contacts.map(c=>({...c,height:c.height?Number(c.height):null,weightHistory:Array.isArray(c.weightHistory)?c.weightHistory:[]}));contacts=dedupeContacts(contacts);}
 function dedupeContacts(arr){const seen=new Set();return arr.filter(c=>{const k=String(c.id);if(seen.has(k))return false;seen.add(k);return true;});}
-function saveContacts(){localStorage.setItem('agendaContacts',JSON.stringify(contacts));cloudSave();}
+function saveContacts(){localStorage.setItem('agendaContacts',JSON.stringify(contacts));localStorage.setItem('lastLocalSave',Date.now());cloudSave();}
 loadNotes();loadContacts();
 notes=notes.map(n=>({...n,metricType:n.metricType||'peso'}));
 
@@ -2436,8 +2439,10 @@ if ('serviceWorker' in navigator) {
         });
     });
 
-    // Cuando el SW nuevo toma control → recarga para servir archivos frescos
+    // Cuando el SW nuevo toma control → guarda datos locales antes de recargar
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+        localStorage.setItem('agendaNotes', JSON.stringify(notes));
+        localStorage.setItem('agendaContacts', JSON.stringify(contacts));
         window.location.reload();
     });
 }
