@@ -869,12 +869,14 @@ async function cloudLoad() {
     try {
         const d = await jsonpRequest(SHEET_URL + '?action=getAll');
         if (d.success) {
-            // Protege datos locales no sincronizados: si el usuario guard\u00f3 algo
-            // despu\u00e9s del \u00faltimo sync exitoso, no sobreescribir con datos viejos de la nube.
             const lastLocal = Number(localStorage.getItem('lastLocalSave') || 0);
             const lastCloud = Number(localStorage.getItem('lastCloudSync') || 0);
-            const localIsNewer = lastLocal > lastCloud + 3000; // 3s de margen
-            if (Array.isArray(d.notes) && !localIsNewer) {
+            const localIsNewer = lastLocal > lastCloud + 3000;
+            const localNotes    = notes.length;
+            const localContacts = contacts.length;
+
+            // NUNCA sobreescribir si: datos locales son m\u00e1s nuevos O la nube tiene menos items
+            if (Array.isArray(d.notes) && !localIsNewer && d.notes.length >= localNotes) {
                 notes = d.notes.map(n => ({
                     ...n,
                     date: normalizeDate(n.date),
@@ -885,7 +887,7 @@ async function cloudLoad() {
                 }));
                 localStorage.setItem('agendaNotes', JSON.stringify(notes));
             }
-            if (Array.isArray(d.contacts) && !localIsNewer) {
+            if (Array.isArray(d.contacts) && !localIsNewer && d.contacts.length >= localContacts) {
                 contacts = dedupeContacts(d.contacts.map(c => ({
                     ...c,
                     height: c.height ? Number(c.height) : null,
