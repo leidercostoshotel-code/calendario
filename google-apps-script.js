@@ -119,20 +119,27 @@ function readSheet(ss, name) {
 
 // ── Guarda todos los datos + dispara emails ─────────────────
 function saveAll(params) {
-  var ss = getSpreadsheet();
-  var notesArr, contactsArr;
-  // Apps Script ya decodifica los parámetros GET automáticamente — no usar decodeURIComponent
-  try { notesArr    = JSON.parse(params.notes    || '[]'); } catch(_) { notesArr    = []; }
-  try { contactsArr = JSON.parse(params.contacts || '[]'); } catch(_) { contactsArr = []; }
-  if (!Array.isArray(notesArr))    notesArr    = [];
-  if (!Array.isArray(contactsArr)) contactsArr = [];
-  if (Array.isArray(notesArr))    writeNotes(ss, notesArr);
-  if (Array.isArray(contactsArr)) writeContacts(ss, contactsArr);
+  // LockService evita ejecuciones simultáneas que causarían duplicados en la hoja
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(15000); } catch(e) { return { success: false, error: 'Servidor ocupado, reintenta' }; }
 
-  // Envío automático: detecta notas de peso nuevas de hoy
-  try { sendTodayReports(notesArr, contactsArr); } catch(e) { Logger.log('Email err: ' + e.message); }
+  try {
+    var ss = getSpreadsheet();
+    var notesArr, contactsArr;
+    try { notesArr    = JSON.parse(params.notes    || '[]'); } catch(_) { notesArr    = []; }
+    try { contactsArr = JSON.parse(params.contacts || '[]'); } catch(_) { contactsArr = []; }
+    if (!Array.isArray(notesArr))    notesArr    = [];
+    if (!Array.isArray(contactsArr)) contactsArr = [];
+    writeNotes(ss, notesArr);
+    writeContacts(ss, contactsArr);
 
-  return { success: true, saved: { notes: notesArr.length, contacts: contactsArr.length } };
+    // Envío automático: detecta notas de peso nuevas de hoy
+    try { sendTodayReports(notesArr, contactsArr); } catch(e) { Logger.log('Email err: ' + e.message); }
+
+    return { success: true, saved: { notes: notesArr.length, contacts: contactsArr.length } };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ── Parsea el campo people (string JSON o array) ───────────
