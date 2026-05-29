@@ -788,10 +788,20 @@ async function cloudSave() {
         const url = SHEET_URL+'?action=saveAll&notes='+encodeURIComponent(JSON.stringify(notes))+'&contacts='+encodeURIComponent(JSON.stringify(contacts));
         if (url.length <= 8000) {
             const d = await jsonpRequest(url);
-            if (d.success) {
+            // Verificar que la nube guardó la misma cantidad que enviamos
+            const savedOk = d.success && d.saved &&
+                d.saved.notes === notes.length &&
+                d.saved.contacts === contacts.length;
+            if (savedOk) {
                 lastSync = new Date();
                 localStorage.setItem('lastCloudSync', saveTs);
                 setSyncStatus('synced','Guardado '+lastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}));
+                return;
+            }
+            if (d.success && d.saved) {
+                // La nube guardó menos de lo que enviamos — no actualizar lastCloudSync
+                console.warn('[cloudSave] Mismatch: enviado notes='+notes.length+' contacts='+contacts.length+' guardado='+JSON.stringify(d.saved));
+                setSyncStatus('error','Error de sync — datos locales protegidos');
                 return;
             }
         }
