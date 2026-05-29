@@ -121,13 +121,11 @@ function readSheet(ss, name) {
 function saveAll(params) {
   var ss = getSpreadsheet();
   var notesArr, contactsArr;
-  try {
-    notesArr    = JSON.parse(decodeURIComponent(params.notes    || '[]'));
-    contactsArr = JSON.parse(decodeURIComponent(params.contacts || '[]'));
-  } catch (_) {
-    notesArr    = Array.isArray(params.notes)    ? params.notes    : [];
-    contactsArr = Array.isArray(params.contacts) ? params.contacts : [];
-  }
+  // Apps Script ya decodifica los parámetros GET automáticamente — no usar decodeURIComponent
+  try { notesArr    = JSON.parse(params.notes    || '[]'); } catch(_) { notesArr    = []; }
+  try { contactsArr = JSON.parse(params.contacts || '[]'); } catch(_) { contactsArr = []; }
+  if (!Array.isArray(notesArr))    notesArr    = [];
+  if (!Array.isArray(contactsArr)) contactsArr = [];
   if (Array.isArray(notesArr))    writeNotes(ss, notesArr);
   if (Array.isArray(contactsArr)) writeContacts(ss, contactsArr);
 
@@ -190,10 +188,10 @@ function sendTodayReports(notesArr, contactsArr) {
 
     try {
       var note = byContact[pid][0];
-      var hist = [];
-      try { hist = JSON.parse(contact.weightHistory || '[]'); } catch(_) {}
-      // Asignar historial ya parseado
-      contact.weightHistory = hist;
+      // weightHistory puede llegar como array o como string JSON
+      if (!Array.isArray(contact.weightHistory)) {
+        try { contact.weightHistory = JSON.parse(contact.weightHistory || '[]'); } catch(_) { contact.weightHistory = []; }
+      }
       var html = buildEmailHtml(contact, note, false);
       MailApp.sendEmail({ to: contact.email, subject: '\ud83d\udcca Resumen de salud \u2014 ' + contact.name + ' \u00b7 ' + formatDateES(today), htmlBody: html });
       props.setProperty(lastKey, today);
@@ -207,12 +205,8 @@ function sendTodayReports(notesArr, contactsArr) {
 // ── Envía una nota específica por email al instante ─────────
 function sendNoteEmail(params) {
   var note, contacts;
-  try {
-    note     = JSON.parse(decodeURIComponent(params.note     || '{}'));
-    contacts = JSON.parse(decodeURIComponent(params.contacts || '[]'));
-  } catch(_) {
-    return { success: false, error: 'Parámetros inválidos' };
-  }
+  try { note     = JSON.parse(params.note     || '{}'); } catch(_) { return { success: false, error: 'Parámetros inválidos: note' }; }
+  try { contacts = JSON.parse(params.contacts || '[]'); } catch(_) { return { success: false, error: 'Parámetros inválidos: contacts' }; }
   if (!note || !note.id) return { success: false, error: 'Nota no válida' };
 
   var people = parsePeople(note.people);
