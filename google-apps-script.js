@@ -21,6 +21,46 @@ const SPREADSHEET_ID      = '';  // Ej: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE
 const SHEET_NAME_NOTES    = 'Notas';
 const SHEET_NAME_CONTACTS = 'Contactos';
 
+// ── Configuración de Brevo (envío de emails) ────────────────
+// 1) Crea una cuenta gratis en https://www.brevo.com
+// 2) Genera una API Key en: Configuración → SMTP & API → API Keys
+// 3) Verifica un remitente (email) en: Configuración → Senders & IP
+// 4) Pega aquí tu API Key y el email remitente verificado
+const BREVO_API_KEY     = ''; // Ej: 'xkeysib-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+const BREVO_SENDER_EMAIL = ''; // Email remitente verificado en Brevo
+const BREVO_SENDER_NAME  = 'Agenda de Salud Personal';
+
+// ── Envía un email — usa Brevo si está configurado, si no MailApp ──
+function sendEmail(opts) {
+  var props       = PropertiesService.getScriptProperties();
+  var apiKey      = BREVO_API_KEY      || props.getProperty('BREVO_API_KEY');
+  var senderEmail = BREVO_SENDER_EMAIL || props.getProperty('BREVO_SENDER_EMAIL');
+  var senderName  = BREVO_SENDER_NAME  || props.getProperty('BREVO_SENDER_NAME') || 'Agenda de Salud Personal';
+
+  if (!apiKey || !senderEmail) {
+    MailApp.sendEmail({ to: opts.to, subject: opts.subject, htmlBody: opts.htmlBody });
+    return;
+  }
+
+  var response = UrlFetchApp.fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'api-key': apiKey, 'accept': 'application/json' },
+    payload: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: opts.to }],
+      subject: opts.subject,
+      htmlContent: opts.htmlBody
+    }),
+    muteHttpExceptions: true
+  });
+
+  var code = response.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('Brevo error ' + code + ': ' + response.getContentText());
+  }
+}
+
 // ── Obtiene el spreadsheet ──────────────────────────────────
 function getSpreadsheet() {
   var props = PropertiesService.getScriptProperties();
@@ -200,7 +240,7 @@ function sendTodayReports(notesArr, contactsArr) {
         try { contact.weightHistory = JSON.parse(contact.weightHistory || '[]'); } catch(_) { contact.weightHistory = []; }
       }
       var html = buildEmailHtml(contact, note, false);
-      MailApp.sendEmail({ to: contact.email, subject: '\ud83d\udcca Resumen de salud \u2014 ' + contact.name + ' \u00b7 ' + formatDateES(today), htmlBody: html });
+      sendEmail({ to: contact.email, subject: '\ud83d\udcca Resumen de salud \u2014 ' + contact.name + ' \u00b7 ' + formatDateES(today), htmlBody: html });
       props.setProperty(lastKey, today);
       Logger.log('\ud83d\udce7 Email enviado a ' + contact.email);
     } catch(emailErr) {
@@ -228,7 +268,7 @@ function sendTodayReports(notesArr, contactsArr) {
 
       try {
         var html = buildBirthdayEmailHtml(contact, n);
-        MailApp.sendEmail({ to: contact.email, subject: '\ud83c\udf89\ud83c\udf82 \u00a1Feliz Cumplea\u00f1os! \u2014 ' + contact.name, htmlBody: html });
+        sendEmail({ to: contact.email, subject: '\ud83c\udf89\ud83c\udf82 \u00a1Feliz Cumplea\u00f1os! \u2014 ' + contact.name, htmlBody: html });
         props.setProperty(bdayKey, today);
         Logger.log('\ud83c\udf82 Email cumplea\u00f1os enviado a ' + contact.email);
       } catch(e) {
@@ -259,7 +299,7 @@ function sendNoteEmail(params) {
     try {
       if (isBday) {
         var html = buildBirthdayEmailHtml(contact, note);
-        MailApp.sendEmail({
+        sendEmail({
           to: contact.email,
           subject: '🎉🎂 ¡Feliz Cumpleaños! — ' + contact.name,
           htmlBody: html
@@ -268,7 +308,7 @@ function sendNoteEmail(params) {
         var html = buildEmailHtml(contact, note, false);
         var metricLabels = {peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Nota'};
         var label = metricLabels[note.metricType||'otro'] || 'Nota';
-        MailApp.sendEmail({
+        sendEmail({
           to: contact.email,
           subject: '📋 ' + label + ' — ' + contact.name + ' · ' + (note.date || ''),
           htmlBody: html
@@ -320,7 +360,7 @@ function diagnosticoEmail() {
       try { hist = JSON.parse(target.weightHistory || '[]'); } catch(_) {}
       target.weightHistory = hist;
       var html = buildEmailHtml(target, null, false);
-      MailApp.sendEmail({ to: target.email, subject: 'TEST \ud83d\udcca Diagnóstico email — Agenda Salud', htmlBody: html });
+      sendEmail({ to: target.email, subject: 'TEST \ud83d\udcca Diagnóstico email — Agenda Salud', htmlBody: html });
       Logger.log('\u2705 Email de prueba enviado!');
     } catch(e) { Logger.log('\u274c Error: ' + e.message); }
   } else {
@@ -341,7 +381,7 @@ function sendWeeklySummary() {
     if (!hist.length) return;
 
     var html = buildEmailHtml(contact, null, true);
-    MailApp.sendEmail({
+    sendEmail({
       to: contact.email,
       subject: '📅 Resumen semanal de salud — ' + contact.name,
       htmlBody: html
