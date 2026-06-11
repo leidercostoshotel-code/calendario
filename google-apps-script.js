@@ -207,6 +207,35 @@ function sendTodayReports(notesArr, contactsArr) {
       Logger.log('Error enviando a ' + contact.email + ': ' + emailErr.message);
     }
   });
+
+  // \u2500\u2500 Cumplea\u00f1os / aniversarios recurrentes de hoy \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var todayMD = today.substring(5); // MM-DD
+  notesArr.forEach(function(n) {
+    var isBday = n.isRecurring === true || n.isRecurring === 'true' || n.type === 'cumplea\u00f1os';
+    if (!isBday) return;
+    var date = String(n.date || '').trim().substring(0, 10);
+    if (date.length < 10 || date.substring(5) !== todayMD) return;
+
+    var people = parsePeople(n.people);
+    people.forEach(function(pid) {
+      var contact = null;
+      contactsArr.forEach(function(c) { if (String(c.id) === String(pid)) contact = c; });
+      if (!contact) { Logger.log('Cumplea\u00f1os: contacto no encontrado ' + pid); return; }
+      if (!contact.email) { Logger.log('Cumplea\u00f1os: sin email ' + contact.name); return; }
+
+      var bdayKey = 'bday_sent_' + pid + '_' + n.id + '_' + today;
+      if (props.getProperty(bdayKey) === today) { Logger.log('Cumplea\u00f1os ya enviado hoy a ' + contact.email); return; }
+
+      try {
+        var html = buildBirthdayEmailHtml(contact, n);
+        MailApp.sendEmail({ to: contact.email, subject: '\ud83c\udf89\ud83c\udf82 \u00a1Feliz Cumplea\u00f1os! \u2014 ' + contact.name, htmlBody: html });
+        props.setProperty(bdayKey, today);
+        Logger.log('\ud83c\udf82 Email cumplea\u00f1os enviado a ' + contact.email);
+      } catch(e) {
+        Logger.log('Error enviando cumplea\u00f1os a ' + contact.email + ': ' + e.message);
+      }
+    });
+  });
 }
 
 // ── Envía una nota específica por email al instante ─────────
@@ -219,6 +248,8 @@ function sendNoteEmail(params) {
   var people = parsePeople(note.people);
   if (!people.length) return { success: false, error: 'La nota no tiene contactos asignados' };
 
+  var isBday = note.isRecurring === true || note.isRecurring === 'true' || note.type === 'cumpleaños';
+
   var sent = [], noEmail = [], errors = [];
   people.forEach(function(pid) {
     var contact = null;
@@ -226,14 +257,23 @@ function sendNoteEmail(params) {
     if (!contact) return;
     if (!contact.email) { noEmail.push(contact.name); return; }
     try {
-      var html = buildEmailHtml(contact, note, false);
-      var metricLabels = {peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Nota'};
-      var label = metricLabels[note.metricType||'otro'] || 'Nota';
-      MailApp.sendEmail({
-        to: contact.email,
-        subject: '📋 ' + label + ' — ' + contact.name + ' · ' + (note.date || ''),
-        htmlBody: html
-      });
+      if (isBday) {
+        var html = buildBirthdayEmailHtml(contact, note);
+        MailApp.sendEmail({
+          to: contact.email,
+          subject: '🎉🎂 ¡Feliz Cumpleaños! — ' + contact.name,
+          htmlBody: html
+        });
+      } else {
+        var html = buildEmailHtml(contact, note, false);
+        var metricLabels = {peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Nota'};
+        var label = metricLabels[note.metricType||'otro'] || 'Nota';
+        MailApp.sendEmail({
+          to: contact.email,
+          subject: '📋 ' + label + ' — ' + contact.name + ' · ' + (note.date || ''),
+          htmlBody: html
+        });
+      }
       sent.push(contact.name);
     } catch(err) {
       errors.push(contact.name + ': ' + err.message);
@@ -477,6 +517,57 @@ function buildEmailHtml(contact, latestNote, isWeekly) {
   '<div style="background:#1e3c72;border-radius:0 0 16px 16px;padding:20px 28px;text-align:center;">' +
   '<p style="color:rgba(255,255,255,0.6);font-size:0.78em;margin:0;">Generado automáticamente por tu Agenda de Salud Personal</p>' +
   '<p style="color:rgba(255,255,255,0.4);font-size:0.72em;margin:6px 0 0;">Para dejar de recibir estos correos, elimina el email del contacto</p>' +
+  '</div>' +
+
+  '</div></body></html>';
+}
+
+// ── Construye el HTML del email de cumpleaños/aniversario ──
+function buildBirthdayEmailHtml(contact, note) {
+  var nombre  = contact.name || '';
+  var titulo  = note.title || '¡Feliz Cumpleaños!';
+  var mensaje = (note.desc || '').toString().trim();
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:linear-gradient(135deg,#fdf0ff,#fff4e6);font-family:\'Segoe UI\',Arial,sans-serif;">' +
+  '<div style="max-width:580px;margin:0 auto;padding:24px;">' +
+
+  // Header festivo
+  '<div style="background:linear-gradient(135deg,#ff6b9d,#ffa36b,#ffd166);border-radius:24px 24px 0 0;padding:40px 28px;text-align:center;position:relative;">' +
+  '<div style="font-size:4em;line-height:1;margin-bottom:8px;">🎉🎂🎈</div>' +
+  '<h1 style="color:#fff;margin:0;font-size:1.8em;font-weight:900;text-shadow:0 2px 6px rgba(0,0,0,0.15);">¡Feliz Cumpleaños!</h1>' +
+  '<p style="color:rgba(255,255,255,0.95);margin:10px 0 0;font-size:1.3em;font-weight:700;">🥳 ' + nombre + ' 🥳</p>' +
+  '</div>' +
+
+  // Título de la nota
+  '<div style="background:#fff;padding:24px 28px;text-align:center;border-left:4px solid #ff6b9d;border-right:4px solid #ffd166;">' +
+  '<div style="font-size:0.75em;color:#aa6;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin-bottom:8px;">🎁 ' + titulo + ' 🎁</div>' +
+
+  // Mensaje personalizado (Observaciones)
+  (mensaje ?
+    '<div style="background:linear-gradient(135deg,#fff0f6,#fff8ec);border-radius:16px;padding:22px;margin-top:14px;border:2px dashed #ffb3c6;">' +
+    '<div style="font-size:2.2em;margin-bottom:10px;">💌</div>' +
+    '<p style="color:#553344;font-size:1.05em;line-height:1.7;margin:0;white-space:pre-wrap;font-weight:600;">' + mensaje + '</p>' +
+    '</div>'
+  : '') +
+  '</div>' +
+
+  // Sección de íconos festivos 3D
+  '<div style="background:#fff;padding:18px 28px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;text-align:center;">' +
+  '<div style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:14px;padding:14px 6px;font-size:2em;">🎂</div>' +
+  '<div style="background:linear-gradient(135deg,#fce7f3,#fbcfe8);border-radius:14px;padding:14px 6px;font-size:2em;">🎈</div>' +
+  '<div style="background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:14px;padding:14px 6px;font-size:2em;">🎁</div>' +
+  '<div style="background:linear-gradient(135deg,#dcfce7,#bbf7d0);border-radius:14px;padding:14px 6px;font-size:2em;">🎊</div>' +
+  '</div>' +
+
+  // Mensaje final
+  '<div style="background:linear-gradient(135deg,#ff6b9d,#ffa36b);padding:24px 28px;text-align:center;">' +
+  '<p style="color:#fff;font-size:1.1em;font-weight:800;margin:0;">🌟 ¡Que tengas un día increíble! 🌟</p>' +
+  '<p style="color:rgba(255,255,255,0.9);font-size:0.9em;margin:8px 0 0;">Con cariño, tu Agenda Personal 💖</p>' +
+  '</div>' +
+
+  // Footer
+  '<div style="background:#1e3c72;border-radius:0 0 16px 16px;padding:18px 28px;text-align:center;">' +
+  '<p style="color:rgba(255,255,255,0.6);font-size:0.78em;margin:0;">Generado automáticamente por tu Agenda de Salud Personal 🎉</p>' +
   '</div>' +
 
   '</div></body></html>';
