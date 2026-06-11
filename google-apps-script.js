@@ -327,8 +327,10 @@ function setupWeeklyTrigger() {
 
 // ── Construye el HTML del email ─────────────────────────────
 function buildEmailHtml(contact, latestNote, isWeekly) {
+  // weightHistory puede llegar como array (desde la app) o string JSON (desde la hoja)
   var hist = [];
-  try { hist = JSON.parse(contact.weightHistory || '[]'); } catch(_) {}
+  if (Array.isArray(contact.weightHistory)) hist = contact.weightHistory;
+  else { try { hist = JSON.parse(contact.weightHistory || '[]'); } catch(_) {} }
 
   // Peso a usar
   var weightKg = null;
