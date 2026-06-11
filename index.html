@@ -575,6 +575,7 @@
                         <option value="glucosa">🧪 Glucosa</option>
                         <option value="entrenamiento">🏃 Entrenamiento</option>
                         <option value="otro">📝 Otro</option>
+                        <option value="cumpleanos">🎂 Cumpleaños / Aniversario</option>
                     </select>
                 </div>
                 <div class="input-group"><label>&#128221; T&iacute;tulo del Registro</label><input type="text" id="noteTitle" placeholder="Registro de peso"></div>
@@ -715,7 +716,7 @@ function getInitials(name){const p=name.trim().split(/\s+/);return p.length>=2?(
 // ======= DATA =======
 let currentDate=new Date(),notes=[],contacts=[],editingNoteId=null,editingContactId=null,selectedPersonIds=[],holidays={},acIndex=-1;
 
-const metricLabelMap={peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Otro'};
+const metricLabelMap={peso:'Peso',presion:'Presión',glucosa:'Glucosa',entrenamiento:'Entrenamiento',otro:'Otro',cumpleanos:'Cumpleaños'};
 
 const peruHolidays2025={'2025-01-01':'A\u00f1o Nuevo','2025-04-17':'Jueves Santo','2025-04-18':'Viernes Santo','2025-05-01':'D\u00eda del Trabajo','2025-06-29':'San Pedro y San Pablo','2025-07-28':'Fiestas Patrias','2025-07-29':'Fiestas Patrias','2025-08-30':'Santa Rosa de Lima','2025-10-08':'Combate de Angamos','2025-11-01':'Todos los Santos','2025-12-08':'Inmaculada Concepci\u00f3n','2025-12-09':'Batalla de Ayacucho','2025-12-25':'Navidad'};
 const peruHolidays2026={'2026-01-01':'A\u00f1o Nuevo','2026-04-02':'Jueves Santo','2026-04-03':'Viernes Santo','2026-05-01':'D\u00eda del Trabajo','2026-06-29':'San Pedro y San Pablo','2026-07-28':'Fiestas Patrias','2026-07-29':'Fiestas Patrias','2026-08-30':'Santa Rosa de Lima','2026-10-08':'Combate de Angamos','2026-11-01':'Todos los Santos','2026-12-08':'Inmaculada Concepci\u00f3n','2026-12-09':'Batalla de Ayacucho','2026-12-25':'Navidad'};
@@ -1080,10 +1081,29 @@ function updateTitlePlaceholder(){
     const metric=document.getElementById('noteMetricType').value;
     const title=document.getElementById('noteTitle');
     const desc=document.getElementById('noteDesc');
-    const placeholders={peso:'Ej: 79.4',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro'};
-    const descPlaceholders={peso:'Observaciones del registro de peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes'};
+    const placeholders={peso:'Ej: 79.4',presion:'Control de presión',glucosa:'Control de glucosa',entrenamiento:'Sesión de entrenamiento',otro:'Título del registro',cumpleanos:'Ej: Cumpleaños de Martín'};
+    const descPlaceholders={peso:'Observaciones del registro de peso',presion:'Describe presión, síntomas o recomendaciones',glucosa:'Describe nivel, horario y observaciones',entrenamiento:'Describe rutina, intensidad y sensaciones',otro:'Describe observaciones importantes',cumpleanos:'Mensaje que se enviará por correo el día del cumpleaños'};
     title.placeholder=placeholders[metric]||'Título del registro';
     desc.placeholder=descPlaceholders[metric]||'Describe observaciones importantes';
+
+    const noteType=document.getElementById('noteType');
+    const eventGroup=noteType.closest('.input-group');
+    if(metric==='cumpleanos'){
+        noteType.value='cumpleaños';
+        noteType.disabled=true;
+        noteType.style.opacity='0.6';
+        if(eventGroup) eventGroup.style.display='none';
+        const wpg=document.getElementById('weightPriorityGroup');
+        if(wpg) wpg.style.display='none';
+    } else {
+        noteType.disabled=false;
+        noteType.style.opacity='1';
+        if(eventGroup) eventGroup.style.display='';
+        const wpg=document.getElementById('weightPriorityGroup');
+        if(wpg) wpg.style.display='';
+        if(noteType.value==='cumpleaños') noteType.value='tarea';
+    }
+
     updateAutoPriority();
 }
 
@@ -1996,9 +2016,10 @@ function autoLogWeightFromNote(metricType, title, date, peopleIds){
 function addNote(){
     const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value,metricType=document.getElementById('noteMetricType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
-    const isRecurring=(type==='cumplea\u00f1os');
+    const isRecurring=(type==='cumplea\u00f1os'||metricType==='cumpleanos');
+    const finalType=isRecurring?'cumplea\u00f1os':type;
     autoLogWeightFromNote(metricType,title,date,[...selectedPersonIds]);
-    notes.push({id:Date.now(),title,desc,date,priority,type,metricType,completed:false,isRecurring,people:[...selectedPersonIds]});
+    notes.push({id:Date.now(),title,desc,date,priority,type:finalType,metricType,completed:false,isRecurring,people:[...selectedPersonIds]});
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
 }
 function editNote(id){
@@ -2017,8 +2038,9 @@ function saveChanges(){
     if(!editingNoteId) return;const i=notes.findIndex(n=>n.id===editingNoteId);if(i===-1) return;
     const title=document.getElementById('noteTitle').value,desc=document.getElementById('noteDesc').value,date=normalizeDate(document.getElementById('noteDate').value),priority=document.getElementById('noteWeight').value,type=document.getElementById('noteType').value,metricType=document.getElementById('noteMetricType').value;
     if(!title||!desc||!date){alert('\u26a0\ufe0f Por favor completa todos los campos');return;}
-    const isRecurring=(type==='cumplea\u00f1os');
-    notes[i]={...notes[i],title,desc,date,priority,type,metricType,isRecurring,people:[...selectedPersonIds]};
+    const isRecurring=(type==='cumplea\u00f1os'||metricType==='cumpleanos');
+    const finalType=isRecurring?'cumplea\u00f1os':type;
+    notes[i]={...notes[i],title,desc,date,priority,type:finalType,metricType,isRecurring,people:[...selectedPersonIds]};
     if(isRecurring) notes[i].completed=false;
     autoLogWeightFromNote(metricType,title,date,[...selectedPersonIds]);
     saveNotes();resetNoteForm();renderCalendar();updateTicker();checkTodayAlerts();
@@ -2132,8 +2154,8 @@ function _getWorstBmiClass(note){
 function renderNoteCard(n){
     const bmiClass=_getWorstBmiClass(n);
     const cardClass=(bmiClass&&!n.isRecurring)?bmiClass:`priority-${n.priority}`;
-    const metricIcons={peso:'\u2696\ufe0f',presion:'\ud83e\ude7a',glucosa:'\ud83e\uddea',entrenamiento:'\ud83c\udfc3',otro:'\ud83d\udcdd'};
-    const metricUnits={peso:'kg',presion:'mmHg',glucosa:'mg/dL',entrenamiento:'',otro:''};
+    const metricIcons={peso:'\u2696\ufe0f',presion:'\ud83e\ude7a',glucosa:'\ud83e\uddea',entrenamiento:'\ud83c\udfc3',otro:'\ud83d\udcdd',cumpleanos:'\ud83c\udf82'};
+    const metricUnits={peso:'kg',presion:'mmHg',glucosa:'mg/dL',entrenamiento:'',otro:'',cumpleanos:''};
     const mt=n.metricType||'peso';
     const icon=n.isRecurring?'\ud83c\udf82':(metricIcons[mt]||'\ud83d\udcdd');
     const unit=metricUnits[mt]||'';
